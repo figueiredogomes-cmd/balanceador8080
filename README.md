@@ -76,11 +76,12 @@ de administração (sudo).
 Dentro do terminal do seu Ubuntu recém-instalado, execute o comando de atualização de segurança do sistema:
 sudo apt update && sudo apt upgrade -y
 
+
    Passo 3: 
-    git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
-    cd servico-balanceamento
-    ls 
-   bash ./setup.sh
+            git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
+            cd servico-balanceamento
+            ls 
+           bash ./setup.sh
     
  
    #Execução do Script de Automação
