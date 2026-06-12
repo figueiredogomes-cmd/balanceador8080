@@ -7,7 +7,8 @@
     Identificador do Projeto: #balanceador8090
         
 1 Visão Geral:
-        Este projeto apresenta a implementação prática de um laboratório de infraestrutura de redes
+   
+   Este projeto apresenta a implementação prática de um laboratório de infraestrutura de redes
     resiliente e de alta disponibilidade, estruturado de acordo com os princípios de Infraestrutura
     como Código (IaC).
     O principal objetivo deste ambiente é simular um cenário real de tráfego web, no qual o
@@ -20,7 +21,7 @@
     de balanceamento, sem necessidade de reinicialização do proxy reverso (NGINX) ou de
     intervenção manual do utilizador.
        Arquitetura do Sistema
-       A infraestrutura foi desenhada para separar claramente a camada de receção de tráfego externo da camada de processamento de dados (backend).
+       A infraestrutura foi desenhada para separar claramente a camada de receção de tráfego externo da camada de processamento de   dados (backend).
 
    Zona Descrição
    Balanceador (Edge) Ponto de entrada de tráfego configurado na porta pública 8090. Utiliza o NGINX para intercetar as chamadas e delegá-las aos servidores internos.
@@ -85,10 +86,10 @@ sudo apt update && sudo apt upgrade -y
 Com o repositório clonado localmente, basta executar o instalador integrado, que configurará
 as dependências do Docker e iniciará todos os containers:
 bash ./setup.sh
-# Inicialização garantida do servico de Docker no WSL
-  sudo service docker start
   
-  
+  * No seu navegador ou web browser
+    cole http://localhost:8090/
+    
   * Remocao de containers legados para evitar conflitos de portas
     docker-compose down
     
@@ -106,7 +107,7 @@ docker ps --format "{{.Names}}" | grep -q server3 || echo "ALERTA: SERVER3 OFFLI
 sleep 5
 done
 
-   Configuração das Regras do Balanceador (nginx.conf)
+Configuração das Regras do Balanceador (nginx.conf)
    Configura a distribuição do tráfego do NGINX usando a diretiva upstream. Define também o
    limiar de tolerância a falhas (max_fails=2 fail_timeout=10s) e as regras de fallback.
     Listing 2: Ficheiro nginx.conf
@@ -169,7 +170,7 @@ done
             
               Simulação de Falha de Infraestrutura (Failover)
              
-              Abra uma janela de terminal paralela no WSL Ubuntu e execute o encerramento manual da
+           Abra uma janela de terminal paralela no WSL Ubuntu e execute o encerramento manual da
             instância número 2:
             docker stop server2
             
@@ -187,10 +188,12 @@ done
           Cenário de Teste: Recuperação de Serviços (Self-Healing)
             Inicie novamente o serviço que simulou a falha:
             docker start server2
-            - Comportamento da Monitorização (install.sh): 
-            O alerta sobre o estado offline do server2
-            deixa de ser exibido na consola de forma imediata.
-            - Comportamento do Balanceador: O NGINX, de forma autónoma e sem requerer o reinício do seu serviço ou alteração manual de             ficheiros, reincorpora o server2 no cluster.
+        
+             
+                   Comportamento da Monitorização (install.sh): 
+                  O alerta sobre o estado offline do server2
+               deixa de ser exibido na consola de forma imediata.
+          - Comportamento do Balanceador: O NGINX, de forma autónoma e sem requerer o reinício do seu serviço ou alteração manual de             ficheiros, reincorpora o server2 no cluster.
             - Resultado Esperado: O comportamento nominal inicial é restabelecido no navegador:
             Servidor 1 → Servidor 2 → Servidor 3 → Servidor 1.
             
