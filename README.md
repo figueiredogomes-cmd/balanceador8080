@@ -77,9 +77,10 @@ de administração (sudo).
 Dentro do terminal do seu Ubuntu recém-instalado, execute o comando de atualização de segurança do sistema:
 sudo apt update && sudo apt upgrade -y
 
-  Passo 3: Instalação do Git e Clonagem do Repositório
+  Passo 3: 
+Instalação do Git e Clonagem do Repositório
 Agora, instale o utilitário Git e realize o download do código do laboratório:
-sudo apt install git -y
+   sudo apt install git -y
 git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
 cd balanceador8090
 Execução do Script de Automação
@@ -87,19 +88,7 @@ Com o repositório clonado localmente, basta executar o instalador integrado, qu
 as dependências do Docker e iniciará todos os containers:
 bash install.sh
 
- Ficheiros de Configuração do Projeto
-Esta secção lista a implementação detalhada de cada um dos ficheiros que gerem e orquestram
-a nossa infraestrutura virtualizada.
-
- Script de Instalação e Monitorização (install.sh)
-Este script automatiza as instalações de pacotes, assegura o arranque do serviço Docker, limpa
-resíduos de instâncias anteriores e entra num ciclo infinito de verificação de saúde do sistema.
-Listing 1: Ficheiro install.sh
-#!/bin/bash
-echo "==========================================="
-echo " SERVICO DE BALANCEAMENTO"
-echo " Ubuntu WSL + Docker"
-echo "==========================================="
+ 
 # Atualizacao de repositorios e instalacao de dependencias
 sudo apt update -y
 sudo apt install -y docker.io docker-compose curl git
@@ -121,128 +110,92 @@ docker ps --format "{{.Names}}" | grep -q server3 || echo "ALERTA: SERVER3 OFFLI
 sleep 5
 done
 
-Configuração das Regras do Balanceador (nginx.conf)
-Configura a distribuição do tráfego do NGINX usando a diretiva upstream. Define também o
-limiar de tolerância a falhas (max_fails=2 fail_timeout=10s) e as regras de fallback.
-Listing 2: Ficheiro nginx.conf
-events {}
-http {
-# Definio do cluster de servidores de aplicacao
-upstream backend {
-server server1:80 max_fails=2 fail_timeout=10s;
-5
-server server2:80 max_fails=2 fail_timeout=10s;
-server server3:80 max_fails=2 fail_timeout=10s;
-}
-server {
-listen 80;
-location / {
-# Define quais falhas do upstream forcam o roteamento para o proximo nó livre
-proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
-proxy_pass http://backend;
-}
-}
-}
-6
-
-Orquestração de Recursos (docker-compose.yml)
-Orquestra a criação automática da rede local virtualizada e define as propriedades de isolamento e execução contínua de cada container de aplicação.
-Listing 3: Ficheiro docker-compose.yml
-version: "3.8"
-services:
-nginx:
-image: nginx:latest
-container_name: balanceador
-restart: always
-ports:
-- "8090:80"
-volumes:
-- ./nginx.conf:/etc/nginx/nginx.conf:ro
-depends_on:
-- server1
-- server2
-- server3
-server1:
-image: nginx:alpine
-container_name: server1
-restart: always
-server2:
-image: nginx:alpine
-container_name: server2
-restart: always
-server3:
-image: nginx:alpine
-container_name: server3
-restart: always
-
-Script para Alternância Automática no Navegador (HTML/JavaScript)
-Para fins de validação visual rápida, pode criar um ficheiro index.html que efetua chamadas
-assíncronas contínuas em background, atualizando o conteúdo do ecrã sem interrupções.
-Listing 4: Script de validacao automatica
-<!DOCTYPE html>
-<html lang="pt">
-<head>
-<meta charset="UTF-8">
-<title>Visualizador do Cluster #balanceador8090</title>
-</head>
-<body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
-<h1>Estado do Balanceador de Carga</h1>
-<div id="resultado" style="font-size: 24px; font-weight: bold; padding: 20px; border: 2
-px solid #ccc; display: inline-block;">
-A carregar estado dos servidores...
-</div>
-<script>
-7
-function atualizar(){
-// Executa um fetch na porta do balanceador
-fetch('/')
-.then(r => r.text())
-.then(data => {
-document.getElementById('resultado').innerHTML = data;
-})
-.catch(err => {
-document.getElementById('resultado').innerHTML = "Erro de comunicacao com o
-Balanceador";
-});
-}
-// Efetua um ciclo de chamadas a cada 1000 milissegundos (1 segundo)
-setInterval(atualizar, 1000);
-atualizar();
-</script>
-</body>
-</html>
-
- Resultado Esperado: O terminal e o navegador alternam entre as instâncias seguindo o
-modelo cíclico de distribuição:
-Servidor 1 → Servidor 2 → Servidor 3 → Servidor 1.
-
-    Simulação de Falha de Infraestrutura (Failover)
-Abra uma janela de terminal paralela no WSL Ubuntu e execute o encerramento manual da
-instância número 2:
-docker stop server2
-- Comportamento da Monitorização (install.sh): O terminal exibirá ativamente após 5
-segundos:
-ALERTA: SERVER2 OFFLINE
-
-- Comportamento do Balanceador: O NGINX deteta a falha na comunicação com o socket
-do server2, marca o nó como inativo temporariamente e desvia o tráfego.
-- Resultado Esperado: Sem que o utilizador note qualquer erro no ecrã (como falhas 502
-Bad Gateway), o fluxo passa a ser:
-Servidor 1 → Servidor 3 → Servidor 1 → Servidor 3.
-
-   Cenário de Teste 3: Recuperação de Serviços (Self-Healing)
-Inicie novamente o serviço que simulou a falha:
-docker start server2
-- Comportamento da Monitorização (install.sh): O alerta sobre o estado offline do server2
-deixa de ser exibido na consola de forma imediata.
-- Comportamento do Balanceador: O NGINX, de forma autónoma e sem requerer o reinício do seu serviço ou alteração manual de ficheiros, reincorpora o server2 no cluster.
-- Resultado Esperado: O comportamento nominal inicial é restabelecido no navegador:
-Servidor 1 → Servidor 2 → Servidor 3 → Servidor 1.
-
- Conclusão
-Este laboratório demonstra de forma pragmática o poder da combinação entre Docker e NGINX
-no provisionamento de infraestruturas modernas e robustas. Ao simular falhas de sistema em
-ambiente controlado e isolado através do ecossistema WSL, conclui-se que soluções de alta
-disponibilidade de nível empresarial podem ser replicadas, validadas e testadas usando pouquíssimos recursos computacionais domésticos. O projeto serve como uma excelente base de
-conhecimento prático de engenharia de redes para disciplinas de computação e desenvolvimento de sistemas distribuídos.
-
+   Configuração das Regras do Balanceador (nginx.conf)
+   Configura a distribuição do tráfego do NGINX usando a diretiva upstream. Define também o
+   limiar de tolerância a falhas (max_fails=2 fail_timeout=10s) e as regras de fallback.
+    Listing 2: Ficheiro nginx.conf
+    events {}
+    http {
+                # Definio do cluster de servidores de aplicacao
+            upstream backend {
+            server server1:80 max_fails=2 fail_timeout=10s;
+            5
+            server server2:80 max_fails=2 fail_timeout=10s;
+            server server3:80 max_fails=2 fail_timeout=10s;
+            }
+            server {
+            listen 80;
+            location / {
+            # Define quais falhas do upstream forcam o roteamento para o proximo nó livre
+            proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
+            proxy_pass http://backend;
+            }
+            }
+            }
+            6
+            
+            Orquestração de Recursos (docker-compose.yml)
+            Orquestra a criação automática da rede local virtualizada e define as propriedades de isolamento e execução contínua de cada container de aplicação.
+            Listing 3: Ficheiro docker-compose.yml
+            version: "3.8"
+            services:
+            nginx:
+            image: nginx:latest
+            container_name: balanceador
+            restart: always
+            ports:
+            - "8090:80"
+            volumes:
+            - ./nginx.conf:/etc/nginx/nginx.conf:ro
+            depends_on:
+            - server1
+            - server2
+            - server3
+            server1:
+            image: nginx:alpine
+            container_name: server1
+            restart: always
+            server2:
+            image: nginx:alpine
+            container_name: server2
+            restart: always
+            server3:
+            image: nginx:alpine
+            container_name: server3
+            restart: always
+            
+        
+             Resultado Esperado: O terminal e o navegador alternam entre as instâncias seguindo o
+            modelo cíclico de distribuição:
+            Servidor 1 → Servidor 2 → Servidor 3 → Servidor 1.
+            
+                Simulação de Falha de Infraestrutura (Failover)
+            Abra uma janela de terminal paralela no WSL Ubuntu e execute o encerramento manual da
+            instância número 2:
+            docker stop server2
+            - Comportamento da Monitorização (install.sh): O terminal exibirá ativamente após 5
+            segundos:
+            ALERTA: SERVER2 OFFLINE
+            
+            - Comportamento do Balanceador: O NGINX deteta a falha na comunicação com o socket
+            do server2, marca o nó como inativo temporariamente e desvia o tráfego.
+            - Resultado Esperado: Sem que o utilizador note qualquer erro no ecrã (como falhas 502
+            Bad Gateway), o fluxo passa a ser:
+            Servidor 1 → Servidor 3 → Servidor 1 → Servidor 3.
+            
+        Cenário de Teste 3: Recuperação de Serviços (Self-Healing)
+            Inicie novamente o serviço que simulou a falha:
+            docker start server2
+            - Comportamento da Monitorização (install.sh): 
+            O alerta sobre o estado offline do server2
+            deixa de ser exibido na consola de forma imediata.
+            - Comportamento do Balanceador: O NGINX, de forma autónoma e sem requerer o reinício do seu serviço ou alteração manual de             ficheiros, reincorpora o server2 no cluster.
+            - Resultado Esperado: O comportamento nominal inicial é restabelecido no navegador:
+            Servidor 1 → Servidor 2 → Servidor 3 → Servidor 1.
+            
+             Conclusão
+            Este laboratório demonstra de forma pragmática o poder da combinação entre Docker e NGINX
+            no provisionamento de infraestruturas modernas e robustas. Ao simular falhas de sistema em
+            ambiente controlado e isolado através do ecossistema WSL, conclui-se que soluções de alta
+            disponibilidade de nível empresarial podem ser replicadas, validadas e testadas usando pouquíssimos recursos computacionais             domésticos. O projeto serve como uma excelente base de conhecimento prático de engenharia de redes para disciplinas de computação e desenvolvimento de sistemas distribuídos.
+            
