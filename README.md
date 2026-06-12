@@ -50,8 +50,8 @@ Fluxo de tráfego de rede e roteamento inteligente do proxy reverso.
 
 2  Requisitos do Sistema e Homologação
    
-    O ambiente foi desenvolvido com foco em eficiência de recursos, sendo extremamente leve e
-   executável em máquinas domésticas convencionais.
+*  O ambiente foi desenvolvido com foco em eficiência de recursos, sendo extremamente leve e
+executável em máquinas domésticas convencionais.
     - Processador (CPU): Mínimo de 1 Núcleo físico (Recomendado: 2 Núcleos ou superior).
     - Memória RAM disponível: Mínimo de 2 GB livres.
     - Espaço em Disco: Mínimo de 500 MB livres para as imagens base do Docker (NGINX e
