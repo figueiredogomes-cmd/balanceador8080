@@ -1,30 +1,28 @@
-    Instituto Federal de Educação, Ciência e Tecnologia de Mato
-    Grosso
-    Campus Cuiabá - Octayde Jorge da Silva
-   Curso: Tecnologia em Análise e Desenvolvimento de Sistemas / Redes
-  Disciplina: Programação Para Redes
-   Data: 12 de junho de 2026
-#Implementação de Balanceamento de Carga e
-Failover Dinâmico com NGINX e Docker
-Identificador do Projeto: #balanceador8090
-1 Visão Geral
-Este projeto apresenta a implementação prática de um laboratório de infraestrutura de redes
-resiliente e de alta disponibilidade, estruturado de acordo com os princípios de Infraestrutura
-como Código (IaC).
-O principal objetivo deste ambiente é simular um cenário real de tráfego web, no qual o
-balanceador central distribui requisições entre servidores de aplicação redundantes. O sistema
-integra as seguintes funcionalidades críticas:
-- Balanceamento de Carga Automatizado (Round-Robin): Distribuição equitativa e alternada das requisições web externas entre as instâncias internas de backend.
-- Tolerância a Falhas Dinâmica (Failover): Monitorização passiva dos nós de backend.
-Caso um servidor falhe, ele é expurgado das rotas de encaminhamento instantaneamente.
-- Auto-Recuperação (Self-Healing): Reinserção automática do nó recuperado ao cluster
-de balanceamento, sem necessidade de reinicialização do proxy reverso (NGINX) ou de
-intervenção manual do utilizador.
-   Arquitetura do Sistema
-   A infraestrutura foi desenhada para separar claramente a camada de receção de tráfego externo da camada de processamento de dados (backend).
+        Instituto Federal de Educação, Ciência e Tecnologia de Mato Grosso Campus Cuiabá - Octayde Jorge da Silva
+       Curso: Tecnologia em Análise e Desenvolvimento de Sistemas / Redes
+      Disciplina: Programação Para Redes
+       Data: 12 de junho de 2026
+    #Implementação de Balanceamento de Carga e
+    Failover Dinâmico com NGINX e Docker
+    Identificador do Projeto: #balanceador8090
+        
+1 Visão Geral:
+        Este projeto apresenta a implementação prática de um laboratório de infraestrutura de redes
+    resiliente e de alta disponibilidade, estruturado de acordo com os princípios de Infraestrutura
+    como Código (IaC).
+    O principal objetivo deste ambiente é simular um cenário real de tráfego web, no qual o
+    balanceador central distribui requisições entre servidores de aplicação redundantes. O sistema
+    integra as seguintes funcionalidades críticas:
+    - Balanceamento de Carga Automatizado (Round-Robin): Distribuição equitativa e alternada das requisições web externas entre as instâncias internas de backend.
+    - Tolerância a Falhas Dinâmica (Failover): Monitorização passiva dos nós de backend.
+    Caso um servidor falhe, ele é expurgado das rotas de encaminhamento instantaneamente.
+    - Auto-Recuperação (Self-Healing): Reinserção automática do nó recuperado ao cluster
+    de balanceamento, sem necessidade de reinicialização do proxy reverso (NGINX) ou de
+    intervenção manual do utilizador.
+       Arquitetura do Sistema
+       A infraestrutura foi desenhada para separar claramente a camada de receção de tráfego externo da camada de processamento de dados (backend).
 
-   Zonas de Rede do Ambiente.
-    Zona Descrição
+   Zona Descrição
    Balanceador (Edge) Ponto de entrada de tráfego configurado na porta pública 8090. Utiliza o NGINX para intercetar as chamadas e delegá-las aos servidores internos.
 Backend (Websites) Composto por três instâncias Docker isoladas (server1, server2, e
 server3) executando NGINX sobre a distribuição leve Alpine Linux,
@@ -50,14 +48,14 @@ Servidor 3
 (Porta 80)
 Fluxo de tráfego de rede e roteamento inteligente do proxy reverso.
 
-
 2  Requisitos do Sistema e Homologação
-O ambiente foi desenvolvido com foco em eficiência de recursos, sendo extremamente leve e
-executável em máquinas domésticas convencionais.
-- Processador (CPU): Mínimo de 1 Núcleo físico (Recomendado: 2 Núcleos ou superior).
-- Memória RAM disponível: Mínimo de 2 GB livres.
-- Espaço em Disco: Mínimo de 500 MB livres para as imagens base do Docker (NGINX e
-Alpine).
+   
+    O ambiente foi desenvolvido com foco em eficiência de recursos, sendo extremamente leve e
+   executável em máquinas domésticas convencionais.
+    - Processador (CPU): Mínimo de 1 Núcleo físico (Recomendado: 2 Núcleos ou superior).
+    - Memória RAM disponível: Mínimo de 2 GB livres.
+    - Espaço em Disco: Mínimo de 500 MB livres para as imagens base do Docker (NGINX e
+    Alpine).
 
 3
 Especificações do Ambiente de Homologação
@@ -77,31 +75,32 @@ de administração (sudo).
 Dentro do terminal do seu Ubuntu recém-instalado, execute o comando de atualização de segurança do sistema:
 sudo apt update && sudo apt upgrade -y
 
-  Passo 3: 
-Instalação do Git e Clonagem do Repositório
-Agora, instale o utilitário Git e realize o download do código do laboratório:
-   sudo apt install git -y
-git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
-cd balanceador8090
-Execução do Script de Automação
+   Passo 3: 
+   Instalação do Git e Clonagem do Repositório
+    Agora, instale o utilitário Git e realize o download do código do laboratório:
+    sudo apt install git -y
+    git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
+    cd balanceador8090
+   Execução do Script de Automação
 Com o repositório clonado localmente, basta executar o instalador integrado, que configurará
 as dependências do Docker e iniciará todos os containers:
-bash install.sh
+bash ./setup.sh
 
  
-# Atualizacao de repositorios e instalacao de dependencias
+# Atualização de repositorios e instalacao de dependencias
 sudo apt update -y
 sudo apt install -y docker.io docker-compose curl git
-# Inicializacao garantida do servico de Docker no WSL
-sudo service docker start
-# Remocao de containers legados para evitar conflitos de portas
-docker-compose down 2>/dev/null
-# Inicializacao dos containers em modo background
+# Inicialização garantida do servico de Docker no WSL
+  sudo service docker start
+  
+  * Remocao de containers legados para evitar conflitos de portas
+    docker-compose down
+Inicializacao dos containers em modo background
 docker-compose up -d
 echo "Ambiente iniciado com sucesso!"
 echo "Pressione [CTRL+C] para encerrar a monitorizacao."
 echo "==========================================="
-# Ciclo infinito de monitorizacao de saude dos servidores de backend
+ Ciclo infinito de monitorizacao de saude dos servidores de backend
 while true
 do
 docker ps --format "{{.Names}}" | grep -q server1 || echo "ALERTA: SERVER1 OFFLINE"
@@ -135,7 +134,7 @@ done
             6
             
             Orquestração de Recursos (docker-compose.yml)
-            Orquestra a criação automática da rede local virtualizada e define as propriedades de isolamento e execução contínua de cada container de aplicação.
+            Orquestra a criação automática da rede local virtualizada e define as propriedades de isolamento e execução contínua de                 cada container de aplicação.
             Listing 3: Ficheiro docker-compose.yml
             version: "3.8"
             services:
@@ -183,7 +182,8 @@ done
             Bad Gateway), o fluxo passa a ser:
             Servidor 1 → Servidor 3 → Servidor 1 → Servidor 3.
             
-        Cenário de Teste 3: Recuperação de Serviços (Self-Healing)
+          
+          Cenário de Teste: Recuperação de Serviços (Self-Healing)
             Inicie novamente o serviço que simulou a falha:
             docker start server2
             - Comportamento da Monitorização (install.sh): 
