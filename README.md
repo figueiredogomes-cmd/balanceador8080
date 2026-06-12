@@ -1,10 +1,10 @@
     Instituto Federal de Educação, Ciência e Tecnologia de Mato
     Grosso
     Campus Cuiabá - Octayde Jorge da Silva
-Curso: Tecnologia em Análise e Desenvolvimento de Sistemas / Redes
-Disciplina: Programação Para Redes
-Data: 12 de junho de 2026
-    Implementação de Balanceamento de Carga e
+   Curso: Tecnologia em Análise e Desenvolvimento de Sistemas / Redes
+  Disciplina: Programação Para Redes
+   Data: 12 de junho de 2026
+#Implementação de Balanceamento de Carga e
 Failover Dinâmico com NGINX e Docker
 Identificador do Projeto: #balanceador8090
 1 Visão Geral
@@ -20,12 +20,12 @@ Caso um servidor falhe, ele é expurgado das rotas de encaminhamento instantanea
 - Auto-Recuperação (Self-Healing): Reinserção automática do nó recuperado ao cluster
 de balanceamento, sem necessidade de reinicialização do proxy reverso (NGINX) ou de
 intervenção manual do utilizador.
-2 Arquitetura do Sistema
-A infraestrutura foi desenhada para separar claramente a camada de receção de tráfego externo da camada de processamento de dados (backend).
-1
-Tabela 1: Zonas de Rede do Ambiente
-Zona Descrição
-Balanceador (Edge) Ponto de entrada de tráfego configurado na porta pública 8090. Utiliza o NGINX para intercetar as chamadas e delegá-las aos servidores internos.
+   Arquitetura do Sistema
+   A infraestrutura foi desenhada para separar claramente a camada de receção de tráfego externo da camada de processamento de dados (backend).
+
+   Zonas de Rede do Ambiente.
+    Zona Descrição
+   Balanceador (Edge) Ponto de entrada de tráfego configurado na porta pública 8090. Utiliza o NGINX para intercetar as chamadas e delegá-las aos servidores internos.
 Backend (Websites) Composto por três instâncias Docker isoladas (server1, server2, e
 server3) executando NGINX sobre a distribuição leve Alpine Linux,
 respondendo internamente na porta 80.
@@ -77,7 +77,7 @@ de administração (sudo).
 Dentro do terminal do seu Ubuntu recém-instalado, execute o comando de atualização de segurança do sistema:
 sudo apt update && sudo apt upgrade -y
 
-Passo 3: Instalação do Git e Clonagem do Repositório
+  Passo 3: Instalação do Git e Clonagem do Repositório
 Agora, instale o utilitário Git e realize o download do código do laboratório:
 sudo apt install git -y
 git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
@@ -212,30 +212,25 @@ atualizar();
 </body>
 </html>
 
-Roteiro de Testes e Resultados Esperados
-Para comprovar a eficácia prática da arquitetura tolerante a falhas, siga o roteiro de testes em
-condições adversas apresentado abaixo.
-6.1 Cenário de Teste 1: Operação Nominal Padrão
-Com todos os três servidores em execução, realize requisições contínuas ao endereço http://localhost:80- Comportamento Observado: O balanceador distribui de forma sequencial o tráfego de
-entrada.
-- Resultado Esperado: O terminal e o navegador alternam entre as instâncias seguindo o
+ Resultado Esperado: O terminal e o navegador alternam entre as instâncias seguindo o
 modelo cíclico de distribuição:
 Servidor 1 → Servidor 2 → Servidor 3 → Servidor 1.
 
-Cenário de Teste 2: Simulação de Falha de Infraestrutura (Failover)
+    Simulação de Falha de Infraestrutura (Failover)
 Abra uma janela de terminal paralela no WSL Ubuntu e execute o encerramento manual da
 instância número 2:
 docker stop server2
 - Comportamento da Monitorização (install.sh): O terminal exibirá ativamente após 5
 segundos:
 ALERTA: SERVER2 OFFLINE
+
 - Comportamento do Balanceador: O NGINX deteta a falha na comunicação com o socket
 do server2, marca o nó como inativo temporariamente e desvia o tráfego.
 - Resultado Esperado: Sem que o utilizador note qualquer erro no ecrã (como falhas 502
 Bad Gateway), o fluxo passa a ser:
 Servidor 1 → Servidor 3 → Servidor 1 → Servidor 3.
 
-Cenário de Teste 3: Recuperação de Serviços (Self-Healing)
+   Cenário de Teste 3: Recuperação de Serviços (Self-Healing)
 Inicie novamente o serviço que simulou a falha:
 docker start server2
 - Comportamento da Monitorização (install.sh): O alerta sobre o estado offline do server2
