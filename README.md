@@ -79,8 +79,10 @@ sudo apt update && sudo apt upgrade -y
    Passo 3: 
 
     git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
-    cd balanceador8090
-    bash ./setup.sh
+    cd servico-balanceamento
+    ls 
+   bash ./setup.sh
+    
  
    #Execução do Script de Automação
 Com o repositório clonado localmente, basta executar o instalador integrado, que configurará
@@ -90,29 +92,33 @@ bash ./setup.sh
   * No seu navegador ou web browser
     cole http://localhost:8090/
     
-  * Remocao de containers legados para evitar conflitos de portas
-    docker-compose down
-    
-  Inicializacao dos containers em modo background
-docker-compose up -d
-echo "Ambiente iniciado com sucesso!"
-echo "Pressione [CTRL+C] para encerrar a monitorizacao."
-echo "==========================================="
- Ciclo infinito de monitorizacao de saude dos servidores de backend
-while true
-do
-docker ps --format "{{.Names}}" | grep -q server1 || echo "ALERTA: SERVER1 OFFLINE"
-docker ps --format "{{.Names}}" | grep -q server2 || echo "ALERTA: SERVER2 OFFLINE"
-docker ps --format "{{.Names}}" | grep -q server3 || echo "ALERTA: SERVER3 OFFLINE"
-sleep 5
-done
+  * Remocao de containers legados para evitar conflitos de portas e de um refresh ou ctrl r ou f5 e atualize a página pois o navegador gravou essa página em memória temporária e verá que a página não foi encontrado atualmente 
+    sudo docker-compose down
 
-Configuração das Regras do Balanceador (nginx.conf)
-   Configura a distribuição do tráfego do NGINX usando a diretiva upstream. Define também o
-   limiar de tolerância a falhas (max_fails=2 fail_timeout=10s) e as regras de fallback.
-    Listing 2: Ficheiro nginx.conf
-    events {}
-    http {
+ * para se certificar que deu tudo certo de
+   o comando e vai ver que não tem nenhum container instalado :
+      sudo docker ps   
+    
+     Inicializacao dos containers em modo background
+         docker-compose up -d
+       echo "Ambiente iniciado com sucesso!"
+      echo "Pressione [CTRL+C] para encerrar a monitorizacao."
+      echo "==========================================="
+      Ciclo infinito de monitorizacao de saude dos servidores de backend
+   while true
+    do
+  docker ps --format "{{.Names}}" | grep -q server1 || echo "ALERTA: SERVER1 OFFLINE"
+  docker ps --format "{{.Names}}" | grep -q server2 || echo "ALERTA: SERVER2 OFFLINE"
+ docker ps --format "{{.Names}}" | grep -q server3 || echo "ALERTA: SERVER3 OFFLINE"
+ sleep 5
+ done
+
+     Configuração das Regras do Balanceador (nginx.conf)
+     Configura a distribuição do tráfego do NGINX usando a diretiva upstream. Define também o
+     limiar de tolerância a falhas (max_fails=2 fail_timeout=10s) e as regras de fallback.
+      Listing 2: Ficheiro nginx.conf
+      events {}
+      http {
                 # Definio do cluster de servidores de aplicacao
             upstream backend {
             server server1:80 max_fails=2 fail_timeout=10s;
@@ -160,11 +166,10 @@ Configuração das Regras do Balanceador (nginx.conf)
             image: nginx:alpine
             container_name: server3
             restart: always
+
             
-        
-             Resultado Esperado: 
-             
-             O terminal e o navegador alternam entre as instâncias seguindo o
+         Resultado Esperado: 
+               O terminal e o navegador alternam entre as instâncias seguindo o
             modelo cíclico de distribuição:
             Servidor 1 → Servidor 2 → Servidor 3 → Servidor 1.
             
@@ -177,8 +182,7 @@ Configuração das Regras do Balanceador (nginx.conf)
             - Comportamento da Monitorização (install.sh): O terminal exibirá ativamente após 5
             segundos:
              ALERTA: SERVER2 OFFLINE
-            
-            - Comportamento do Balanceador: O NGINX deteta a falha na comunicação com o socket
+          - Comportamento do Balanceador: O NGINX deteta a falha na comunicação com o socket
             do server2, marca o nó como inativo temporariamente e desvia o tráfego.
             - Resultado Esperado: Sem que o utilizador note qualquer erro no ecrã (como falhas 502
             Bad Gateway), o fluxo passa a ser:
