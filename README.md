@@ -57,7 +57,7 @@ executável em máquinas domésticas convencionais.
     - Espaço em Disco: Mínimo de 500 MB livres para as imagens base do Docker (NGINX e
     Alpine).
 
-3
+  3
 Especificações do Ambiente de Homologação
 Hardware Utilizado nos Testes de Homologação
 Sistema Operativo Arquitetura CPU Memória RAM Armazenamento Mínimo
@@ -76,26 +76,23 @@ Dentro do terminal do seu Ubuntu recém-instalado, execute o comando de atualiza
 sudo apt update && sudo apt upgrade -y
 
    Passo 3: 
-   Instalação do Git e Clonagem do Repositório
-    Agora, instale o utilitário Git e realize o download do código do laboratório:
-    sudo apt install git -y
+
     git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
     cd balanceador8090
-   Execução do Script de Automação
+    bash ./setup.sh
+ 
+   #Execução do Script de Automação
 Com o repositório clonado localmente, basta executar o instalador integrado, que configurará
 as dependências do Docker e iniciará todos os containers:
 bash ./setup.sh
-
- 
-# Atualização de repositorios e instalacao de dependencias
-sudo apt update -y
-sudo apt install -y docker.io docker-compose curl git
 # Inicialização garantida do servico de Docker no WSL
   sudo service docker start
   
+  
   * Remocao de containers legados para evitar conflitos de portas
     docker-compose down
-Inicializacao dos containers em modo background
+    
+  Inicializacao dos containers em modo background
 docker-compose up -d
 echo "Ambiente iniciado com sucesso!"
 echo "Pressione [CTRL+C] para encerrar a monitorizacao."
@@ -164,17 +161,21 @@ done
             restart: always
             
         
-             Resultado Esperado: O terminal e o navegador alternam entre as instâncias seguindo o
+             Resultado Esperado: 
+             
+             O terminal e o navegador alternam entre as instâncias seguindo o
             modelo cíclico de distribuição:
             Servidor 1 → Servidor 2 → Servidor 3 → Servidor 1.
             
-                Simulação de Falha de Infraestrutura (Failover)
-            Abra uma janela de terminal paralela no WSL Ubuntu e execute o encerramento manual da
+              Simulação de Falha de Infraestrutura (Failover)
+             
+              Abra uma janela de terminal paralela no WSL Ubuntu e execute o encerramento manual da
             instância número 2:
             docker stop server2
+            
             - Comportamento da Monitorização (install.sh): O terminal exibirá ativamente após 5
             segundos:
-            ALERTA: SERVER2 OFFLINE
+             ALERTA: SERVER2 OFFLINE
             
             - Comportamento do Balanceador: O NGINX deteta a falha na comunicação com o socket
             do server2, marca o nó como inativo temporariamente e desvia o tráfego.
