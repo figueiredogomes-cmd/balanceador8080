@@ -96,11 +96,13 @@
                   * No seu navegador ou web browser
                     cole http://localhost:8090/
     
-  5- Remocao de containers legados para evitar conflitos de portas:
+      5- Remocao de containers legados para evitar conflitos de portas : sudo docker-compose down
 
-     
-
- 6- Para se certificar que deu tudo certo de
+  
+  
+      6- Agora faça um refresh ou ctrl r ou f5 e atualize a página pois o navegador gravou essa página em memória temporária e verá que a página não foi encontrado atualmente.
+ 
+     7- Para se certificar que deu tudo certo de
    o comando e vai ver que não tem nenhum container instalado :   sudo docker ps   
     
      Inicializacao dos containers em modo background
