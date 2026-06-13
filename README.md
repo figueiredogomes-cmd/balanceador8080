@@ -20,36 +20,36 @@
     - Auto-Recuperação (Self-Healing): Reinserção automática do nó recuperado ao cluster
     de balanceamento, sem necessidade de reinicialização do proxy reverso (NGINX) ou de
     intervenção manual do utilizador.
-       Arquitetura do Sistema
-       A infraestrutura foi desenhada para separar claramente a camada de receção de tráfego externo da camada de processamento de   dados (backend).
     
-    Zona Descrição
-   Balanceador (Edge) Ponto de entrada de tráfego configurado na porta pública 8090. Utiliza o NGINX para intercetar as chamadas e delegá-las aos servidores internos.
-Backend (Websites) Composto por três instâncias Docker isoladas (server1, server2, e
-server3) executando NGINX sobre a distribuição leve Alpine Linux,
-respondendo internamente na porta 80.
-Monitorização Um script em Bash corre em ciclo contínuo, validando o estado de
-prontidão de cada container no sistema e relatando qualquer anomalia diretamente na consola.
-Esquema da Arquitetura do Sistema (#balanceador8090)
-Utilizador
-(Porta 8090)
-✲
-Balanceador
-NGINX
-Proxy Reverso
-✟✟✟
-✟✟✟✯
-✲
-❍❍❍❍❍❍❥
-Servidor 1
-(Porta 80)
-Servidor 2
-(Porta 80)
-Servidor 3
-(Porta 80)
-Fluxo de tráfego de rede e roteamento inteligente do proxy reverso.
-
-        2  Requisitos do Sistema e Homologação
+                 2 #Arquitetura do Sistema
+                 A infraestrutura foi desenhada para separar claramente a camada de receção de tráfego externo da camada de processamento de   dados (backend).
+              Zona Descrição
+             Balanceador 
+          Backend (Websites) Composto por três instâncias Docker isoladas (server1, server2, e
+          server3) executando NGINX sobre a distribuição leve Alpine Linux,
+          respondendo internamente na porta 80.
+          Monitorização Um script em Bash corre em ciclo contínuo, validando o estado de
+          prontidão de cada container no sistema e relatando qualquer anomalia diretamente na consola.
+          Esquema da Arquitetura do Sistema (#balanceador8090)
+          Utilizador
+          (Porta 8090)
+          ✲
+          Balanceador
+          NGINX
+          Proxy Reverso
+            ✟✟✟
+            ✟✟✟✯
+            ✲
+            ❍❍❍❍❍❍❥
+            Servidor 1
+            (Porta 80)
+            Servidor 2
+            (Porta 80)
+            Servidor 3
+            (Porta 80)
+            Fluxo de tráfego de rede e roteamento inteligente do proxy reverso.
+            
+                    2  Requisitos do Sistema e Homologação
            
         *  O ambiente foi desenvolvido com foco em eficiência de recursos, sendo extremamente leve e
         executável em máquinas domésticas convencionais.
@@ -57,14 +57,14 @@ Fluxo de tráfego de rede e roteamento inteligente do proxy reverso.
             - Memória RAM disponível: Mínimo de 2 GB livres.
             - Espaço em Disco: Mínimo de 500 MB livres para as imagens base do Docker (NGINX e
             Alpine).
-
-          3
-        Especificações do Ambiente de Homologação
-        Hardware Utilizado nos Testes de Homologação
-        Sistema Operativo Arquitetura CPU Memória RAM Armazenamento Mínimo
-        Windows 10/11 + WSL 2 (Ubuntu) Intel/AMD x86_64 4 GB Dedicados 10 GB Livres (Geral)
-
-                Passo 1:
+    
+              3
+            Especificações do Ambiente de Homologação
+            Hardware Utilizado nos Testes de Homologação
+            Sistema Operativo Arquitetura CPU Memória RAM Armazenamento Mínimo
+            Windows 10/11 + WSL 2 (Ubuntu) Intel/AMD x86_64 4 GB Dedicados 10 GB Livres (Geral)
+    
+                    Passo 1:
                 Instalação do WSL e do Ubuntu
                 Abra o PowerShell do Windows como Administrador e execute o seguinte comando para instalar o subsistema e a distribuição                 padrão (Ubuntu):
                 wsl --install -d Ubuntu
