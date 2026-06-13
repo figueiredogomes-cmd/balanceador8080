@@ -22,8 +22,8 @@
     intervenção manual do utilizador.
        Arquitetura do Sistema
        A infraestrutura foi desenhada para separar claramente a camada de receção de tráfego externo da camada de processamento de   dados (backend).
-
-                   Zona Descrição
+    
+    Zona Descrição
    Balanceador (Edge) Ponto de entrada de tráfego configurado na porta pública 8090. Utiliza o NGINX para intercetar as chamadas e delegá-las aos servidores internos.
 Backend (Websites) Composto por três instâncias Docker isoladas (server1, server2, e
 server3) executando NGINX sobre a distribuição leve Alpine Linux,
