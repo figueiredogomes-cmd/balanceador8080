@@ -1,14 +1,14 @@
-        Instituto Federal de Educação, Ciência e Tecnologia de Mato Grosso Campus Cuiabá - Octayde Jorge da Silva
-       Curso: Tecnologia em Análise e Desenvolvimento de Sistemas / Redes
-      Disciplina: Programação Para Redes
-       Data: 12 de junho de 2026
-    #Implementação de Balanceamento de Carga e
-    Failover Dinâmico com NGINX e Docker
-    Identificador do Projeto: #balanceador8090
-        
-1 Visão Geral:
+                        Instituto Federal de Educação, Ciência e Tecnologia de Mato Grosso Campus Cuiabá - Octayde Jorge da Silva
+               Curso: Tecnologia em Análise e Desenvolvimento de Sistemas / Redes
+              Disciplina: Programação Para Redes
+               Data: 12 de junho de 2026
+            #Implementação de Balanceamento de Carga e
+            Failover Dinâmico com NGINX e Docker
+            Identificador do Projeto: #balanceador8090
+                
+      1 Visão Geral:
    
-   Este projeto apresenta a implementação prática de um laboratório de infraestrutura de redes
+     Este projeto apresenta a implementação prática de um laboratório de infraestrutura de redes
     resiliente e de alta disponibilidade, estruturado de acordo com os princípios de Infraestrutura
     como Código (IaC).
     O principal objetivo deste ambiente é simular um cenário real de tráfego web, no qual o
@@ -23,7 +23,7 @@
        Arquitetura do Sistema
        A infraestrutura foi desenhada para separar claramente a camada de receção de tráfego externo da camada de processamento de   dados (backend).
 
-   Zona Descrição
+                   Zona Descrição
    Balanceador (Edge) Ponto de entrada de tráfego configurado na porta pública 8090. Utiliza o NGINX para intercetar as chamadas e delegá-las aos servidores internos.
 Backend (Websites) Composto por três instâncias Docker isoladas (server1, server2, e
 server3) executando NGINX sobre a distribuição leve Alpine Linux,
@@ -49,59 +49,59 @@ Servidor 3
 (Porta 80)
 Fluxo de tráfego de rede e roteamento inteligente do proxy reverso.
 
-2  Requisitos do Sistema e Homologação
-   
-*  O ambiente foi desenvolvido com foco em eficiência de recursos, sendo extremamente leve e
-executável em máquinas domésticas convencionais.
-    - Processador (CPU): Mínimo de 1 Núcleo físico (Recomendado: 2 Núcleos ou superior).
-    - Memória RAM disponível: Mínimo de 2 GB livres.
-    - Espaço em Disco: Mínimo de 500 MB livres para as imagens base do Docker (NGINX e
-    Alpine).
-
-  3
-Especificações do Ambiente de Homologação
-Hardware Utilizado nos Testes de Homologação
-Sistema Operativo Arquitetura CPU Memória RAM Armazenamento Mínimo
-Windows 10/11 + WSL 2 (Ubuntu) Intel/AMD x86_64 4 GB Dedicados 10 GB Livres (Geral)
-
-Passo 1:
-Instalação do WSL e do Ubuntu
-Abra o PowerShell do Windows como Administrador e execute o seguinte comando para instalar o subsistema e a distribuição padrão (Ubuntu):
-wsl --install -d Ubuntu
-Após a execução do comando, reinicie o seu computador se solicitado. Ao reiniciar, o Ubuntu
-será inicializado automaticamente e pedirá a criação de um utilizador e palavra-passe padrão
-de administração (sudo).
-
- Passo 2: Atualização do Ambiente Interno do Ubuntu
-Dentro do terminal do seu Ubuntu recém-instalado, execute o comando de atualização de segurança do sistema:
-sudo apt update && sudo apt upgrade -y
-
-
-        Passo 3:
-        
-           git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
+        2  Requisitos do Sistema e Homologação
            
-            cd servico-balanceamento
-            
-            ls 
-            
-           bash ./setup.sh
+        *  O ambiente foi desenvolvido com foco em eficiência de recursos, sendo extremamente leve e
+        executável em máquinas domésticas convencionais.
+            - Processador (CPU): Mínimo de 1 Núcleo físico (Recomendado: 2 Núcleos ou superior).
+            - Memória RAM disponível: Mínimo de 2 GB livres.
+            - Espaço em Disco: Mínimo de 500 MB livres para as imagens base do Docker (NGINX e
+            Alpine).
+
+          3
+        Especificações do Ambiente de Homologação
+        Hardware Utilizado nos Testes de Homologação
+        Sistema Operativo Arquitetura CPU Memória RAM Armazenamento Mínimo
+        Windows 10/11 + WSL 2 (Ubuntu) Intel/AMD x86_64 4 GB Dedicados 10 GB Livres (Geral)
+
+                Passo 1:
+                Instalação do WSL e do Ubuntu
+                Abra o PowerShell do Windows como Administrador e execute o seguinte comando para instalar o subsistema e a distribuição                 padrão (Ubuntu):
+                wsl --install -d Ubuntu
+                Após a execução do comando, reinicie o seu computador se solicitado. Ao reiniciar, o Ubuntu
+                será inicializado automaticamente e pedirá a criação de um utilizador e palavra-passe padrão
+                de administração (sudo).
+
+                 Passo 2: Atualização do Ambiente Interno do Ubuntu
+                Dentro do terminal do seu Ubuntu recém-instalado, execute o comando de atualização de segurança do sistema:
+                sudo apt update && sudo apt upgrade -y
+
+
+                Passo 3:
+                
+                   git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
+                   
+                    cd servico-balanceamento
+                    
+                    ls 
+                    
+                   bash ./setup.sh
     
  
-   #Execução do Script de Automação
-Com o repositório clonado localmente, basta executar o instalador integrado, que configurará
-as dependências do Docker e iniciará todos os containers:
-bash ./setup.sh
-  
-  * No seu navegador ou web browser
-    cole http://localhost:8090/
+                   4 - Execução do Script de Automação
+                Com o repositório clonado localmente, basta executar o instalador integrado, que configurará
+                as dependências do Docker e iniciará todos os containers:
+                bash ./setup.sh
+                  
+                  * No seu navegador ou web browser
+                    cole http://localhost:8090/
     
-  * Remocao de containers legados para evitar conflitos de portas e de um refresh ou ctrl r ou f5 e atualize a página pois o navegador gravou essa página em memória temporária e verá que a página não foi encontrado atualmente 
-    sudo docker-compose down
+  5- Remocao de containers legados para evitar conflitos de portas:
 
- * para se certificar que deu tudo certo de
-   o comando e vai ver que não tem nenhum container instalado :
-      sudo docker ps   
+     
+
+ 6- Para se certificar que deu tudo certo de
+   o comando e vai ver que não tem nenhum container instalado :   sudo docker ps   
     
      Inicializacao dos containers em modo background
          docker-compose up -d
