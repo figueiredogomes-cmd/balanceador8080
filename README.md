@@ -60,6 +60,10 @@ Passo 2- No seu navegador ou web browser cole http://localhost:8090/
 Passo 3- 
   Cenário de Teste: Recuperação de Serviços (Self-Healing)
         Inicie novamente o serviço que simulou a falha seja no servidor 2 como mostrado no comando ou servidor1 ou servidor3 :
+        cd .
+        cd ..
+        ls
+        cd servico-balanceamento
         sudo docker compose start servidor2
 
 
@@ -68,34 +72,35 @@ Passo 4-
 Simulação de Falha de Infraestrutura (Failover)
 Abra uma janela de terminal paralela no WSL Ubuntu e execute o encerramento manual da
   instância de qual servidor quer para no caso paramos o servidor2 como no comando abaixo,  mais poderia ser servidor 1 ou servidor 3 :
-  
-        sudo docker compose stop servidor2
+       cd .
+       cd ..
+       ls
+       cd servico-balanceamento
+       sudo docker compose stop servidor2
         
-          Passo 5 -Para Remoção de containers entre usando os comandos :
+        Passo 5 -Para Remoção de containers entre usando os comandos para encontrar a pasta servico-balanceamento :
               cd .
               cd ..
+              ls
               cd servico-balanceamento 
               sudo docker compose down
 
                                      
-              6- Agora faça um refresh ou ctrl +r  ou f5 e atualize a página pois o navegador gravou essa página em memória temporária e verá que a página não foi encontrado atualmente ou copie e cole http://localhost:8090/  assim verá que a página para de carregar automaticamente .
+              Passo 6- Agora faça um refresh ou ctrl +r  ou f5 e atualize a página pois o navegador gravou essa página em memória temporária e verá que a página não foi encontrado atualmente ou copie e cole http://localhost:8090/  assim verá que a página para de carregar automaticamente .
          
-          7- Para se certificar que deu tudo certo de o comando e vai ver que não tem nenhum container instalado :   sudo docker compose ps   
-
-
-          
-
-
-
-
-
-
-
+         Passo 7- Para se certificar que deu tudo certo de o comando e vai ver que não tem nenhum container instalado :   sudo docker compose ps   
 
         
  Autor
 Lucas De Figueiredo Gomes  
 Instituto Federal de Educação, Ciência e Tecnologia de Mato Grosso – Campus Cuiabá Octayde Jorge da Silva
 Curso: Tecnologia Em Redes De Computadores
+
+   Conclusão
+        Este laboratório demonstra de forma pragmática o poder da combinação entre Docker e NGINX
+        no provisionamento de infraestruturas modernas e robustas. Ao simular falhas de sistema em
+        ambiente controlado e isolado através do ecossistema WSL, conclui-se que soluções de alta
+        disponibilidade de nível empresarial podem ser replicadas, validadas e testadas usando pouquíssimos recursos computacionais             domésticos. O projeto serve como uma excelente base de conhecimento prático de engenharia de redes para disciplinas de computação e desenvolvimento de sistemas distribuídos.          
+
 Disciplina: Programação Para Redes
 Data: 12 de junho de 2026
