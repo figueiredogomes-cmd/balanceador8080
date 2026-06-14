@@ -1,17 +1,17 @@
 Balanceamento de Carga e Failover Dinâmico com NGINX e Docker
-📖 Visão Geral
+📖1  Visão Geral
 Este projeto apresenta a implementação prática de um laboratório de infraestrutura de redes resiliente e de alta disponibilidade, estruturado de acordo com os princípios de Infraestrutura como Código (IaC).
 
 O objetivo é simular um cenário real de tráfego web, no qual o balanceador central distribui requisições entre servidores de aplicação redundantes.
 
-Funcionalidades
+2 -Funcionalidades
 🔄 Balanceamento de Carga (Round-Robin): distribuição alternada e justa das requisições.
 
 ⚠️ Failover Dinâmico: remoção imediata de servidores que falham.
 
 ♻️ Auto-Recuperação (Self-Healing): reinserção automática de servidores recuperados no cluster.
 
-🏗️ Arquitetura do Sistema
+3 - 🏗️ Arquitetura do Sistema
 A infraestrutura separa a camada de recepção de tráfego externo da camada de processamento de dados (backend).
 
 Balanceador: NGINX Proxy Reverso (porta 8090).
@@ -30,98 +30,69 @@ Usuário (Porta 8090)
    |             |               |
 Servidor 1    Servidor 2     Servidor 3
 (Porta 80)   (Porta 80)     (Porta 80)
-⚙️ Requisitos do Sistema
+
+⚙️ 4 - Requisitos do Sistema
 🖥️ CPU: mínimo 1 núcleo físico (recomendado 2 ou mais).
 
 💾 Memória RAM: mínimo 2 GB livres.
 
 📂 Disco: mínimo 500 MB livres para imagens Docker (NGINX + Alpine).
 
+Como executar seguindo :
+Instalação do WSL e do Ubuntu
+            Vá em iniciar e escreva  PowerShell do Windows como Administrador ou cmd como administrador também e execute o seguinte comando para instalar o subsistema e a    distribuição                 padrão (Ubuntu):
+            wsl --install -d Ubuntu
+            Após a execução do comando, reinicie o seu computador se solicitado. Ao reiniciar, o Ubuntu
+            será inicializado automaticamente e pedirá a criação de um utilizador e palavra-passe padrão
+            de administração (sudo).
+
+
 🚀 Como Executar
-1. Clonar o repositório
+Passo 1 
+. Clonar o repositório
 Código
 git clone https://github.com/seuusuario/balanceador8090.git
 cd balanceador8090
-2. Criar os arquivos necessários
-Crie os seguintes arquivos na raiz do projeto:
+bash ./setup.sh
+ 
+Passo 2- No seu navegador ou web browser cole http://localhost:8090/
 
-docker-compose.yml
-Código
-version: '3.8'
+Passo 3- 
+  Cenário de Teste: Recuperação de Serviços (Self-Healing)
+        Inicie novamente o serviço que simulou a falha seja no servidor 2 como mostrado no comando ou servidor1 ou servidor3 :
+        sudo docker compose start servidor2
+Passo 4-
+Simulação de Falha de Infraestrutura (Failover)
+Abra uma janela de terminal paralela no WSL Ubuntu e execute o encerramento manual da
+  instância de qual servidor quer para no caso paramos o servidor2 como no comando abaixo,  mais poderia ser servidor 1 ou servidor 3 :
+  
+        sudo docker compose stop servidor2
+        
+          Passo 5 -Para Remoção de containers entre usando os comandos :
+              cd .
+              cd ..
+              cd servico-balanceamento 
+              sudo docker compose down
 
-services:
-  load_balancer:
-    image: nginx:alpine
-    container_name: load_balancer
-    ports:
-      - "8090:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - server1
-      - server2
-      - server3
+                                     
+              6- Agora faça um refresh ou ctrl +r  ou f5 e atualize a página pois o navegador gravou essa página em memória temporária e verá que a página não foi encontrado atualmente ou copie e cole http://localhost:8090/  assim verá que a página para de carregar automaticamente .
+         
+          7- Para se certificar que deu tudo certo de o comando e vai ver que não tem nenhum container instalado :   sudo docker compose ps   
 
-  server1:
-    image: nginx:alpine
-    container_name: server1
-    ports:
-      - "8081:80"
 
-  server2:
-    image: nginx:alpine
-    container_name: server2
-    ports:
-      - "8082:80"
+          
 
-  server3:
-    image: nginx:alpine
-    container_name: server3
-    ports:
-      - "8083:80"
-nginx.conf
-Código
-events { }
 
-http {
-    upstream backend {
-        server server1:80;
-        server server2:80;
-        server server3:80;
-    }
 
-    server {
-        listen 80;
 
-        location / {
-            proxy_pass http://backend;
-        }
-    }
-}
-monitor.sh
-Código
-#!/bin/bash
-while true; do
-  for server in server1 server2 server3; do
-    if ! docker exec $server curl -s http://localhost:80 > /dev/null; then
-      echo "⚠️ Falha detectada em $server"
-    else
-      echo "✅ $server está ativo"
-    fi
-  done
-  sleep 5
-done
-3. Subir os containers
-Código
-docker-compose up -d
-4. Testar o balanceamento
-Acesse no navegador:
 
-Código
-http://localhost:8090
-🧑‍💻 Autor
+
+
+
+        
+ Autor
 Lucas De Figueiredo Gomes  
 Instituto Federal de Educação, Ciência e Tecnologia de Mato Grosso – Campus Cuiabá Octayde Jorge da Silva
-Curso: Tecnologia em Análise e Desenvolvimento de Sistemas / Redes
+Curso: Tecnologia Em Redes De Computadores
 Disciplina: Programação Para Redes
 Data: 12 de junho de 2026
