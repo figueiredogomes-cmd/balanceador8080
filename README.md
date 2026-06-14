@@ -1,4 +1,4 @@
-                        Instituto Federal de Educação, Ciência e Tecnologia de Mato Grosso Campus Cuiabá - Octayde Jorge da Silva
+                Instituto Federal de Educação, Ciência e Tecnologia de Mato Grosso Campus Cuiabá - Octayde Jorge da Silva
                Curso: Tecnologia em Análise e Desenvolvimento de Sistemas / Redes
               Disciplina: Programação Para Redes
                Data: 12 de junho de 2026
@@ -57,9 +57,8 @@
             - Memória RAM disponível: Mínimo de 2 GB livres.
             - Espaço em Disco: Mínimo de 500 MB livres para as imagens base do Docker (NGINX e
             Alpine).
-    
-              3
-            Especificações do Ambiente de Homologação
+              
+          3- Especificações do Ambiente de Homologação
             Hardware Utilizado nos Testes de Homologação
             Sistema Operativo Arquitetura CPU Memória RAM Armazenamento Mínimo
             Windows 10/11 + WSL 2 (Ubuntu) Intel/AMD x86_64 4 GB Dedicados 10 GB Livres (Geral)
@@ -81,7 +80,7 @@
                 
                    git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
                    
-                    cd servico-balanceamento
+                    cd balanceador8090
                     
                     ls 
                     
@@ -98,12 +97,10 @@
     
       5- Remocao de containers legados para evitar conflitos de portas : sudo docker-compose down
 
-  
-  
-      6- Agora faça um refresh ou ctrl r ou f5 e atualize a página pois o navegador gravou essa página em memória temporária e verá que a página não foi encontrado atualmente.
+                                         
+      6- Agora faça um refresh ou ctrl +r  ou f5 e atualize a página pois o navegador gravou essa página em memória temporária e verá que a página não foi encontrado atualmente ou copie e cole http://localhost:8090/ .
  
-     7- Para se certificar que deu tudo certo de
-   o comando e vai ver que não tem nenhum container instalado :   sudo docker ps   
+  7- Para se certificar que deu tudo certo de o comando e vai ver que não tem nenhum container instalado :   sudo docker ps   
     
      Inicializacao dos containers em modo background
          docker-compose up -d
