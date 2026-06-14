@@ -6,7 +6,7 @@
             Failover Dinâmico com NGINX e Docker
             Identificador do Projeto: #balanceador8090
                 
-      1 Visão Geral:
+      1 - Visão Geral:
    
      Este projeto apresenta a implementação prática de um laboratório de infraestrutura de redes
     resiliente e de alta disponibilidade, estruturado de acordo com os princípios de Infraestrutura
@@ -49,7 +49,7 @@
             (Porta 80)
             Fluxo de tráfego de rede e roteamento inteligente do proxy reverso.
             
-                    2  Requisitos do Sistema e Homologação
+                    3  Requisitos do Sistema e Homologação
            
         *  O ambiente foi desenvolvido com foco em eficiência de recursos, sendo extremamente leve e
         executável em máquinas domésticas convencionais.
@@ -58,14 +58,14 @@
             - Espaço em Disco: Mínimo de 500 MB livres para as imagens base do Docker (NGINX e
             Alpine).
               
-          3- Especificações do Ambiente de Homologação
+          4- Especificações do Ambiente de Homologação
             Hardware Utilizado nos Testes de Homologação
             Sistema Operativo Arquitetura CPU Memória RAM Armazenamento Mínimo
             Windows 10/11 + WSL 2 (Ubuntu) Intel/AMD x86_64 4 GB Dedicados 10 GB Livres (Geral)
     
-                    Passo 1:
+              * Como executar seguindo Passo 1 :
                 Instalação do WSL e do Ubuntu
-                Abra o PowerShell do Windows como Administrador e execute o seguinte comando para instalar o subsistema e a distribuição                 padrão (Ubuntu):
+                Abra o PowerShell do Windows como Administrador e execute o seguinte comando para instalar o subsistema e a    distribuição                 padrão (Ubuntu):
                 wsl --install -d Ubuntu
                 Após a execução do comando, reinicie o seu computador se solicitado. Ao reiniciar, o Ubuntu
                 será inicializado automaticamente e pedirá a criação de um utilizador e palavra-passe padrão
@@ -86,20 +86,17 @@
                     
                    bash ./setup.sh
     
- 
-                   4 - Execução do Script de Automação
-                Com o repositório clonado localmente, basta executar o instalador integrado, que configurará
-                as dependências do Docker e iniciará todos os containers:
-                bash ./setup.sh
-                  
-                  * No seu navegador ou web browser
-                    cole http://localhost:8090/
+                  Passo 4- No seu navegador ou web browser cole http://localhost:8090/
     
-      5- Remocao de containers legados para evitar conflitos de portas : sudo docker-compose down
+              5- Para Remoção de containers entre usando os comandos :
+                  cd .
+                  cd ..
+                  cd servico-balanceamento 
+                  sudo docker-compose down
 
                                          
-      6- Agora faça um refresh ou ctrl +r  ou f5 e atualize a página pois o navegador gravou essa página em memória temporária e verá que a página não foi encontrado atualmente ou copie e cole http://localhost:8090/ .
- 
+                  6- Agora faça um refresh ou ctrl +r  ou f5 e atualize a página pois o navegador gravou essa página em memória temporária e verá que a página não foi encontrado atualmente ou copie e cole http://localhost:8090/  assim verá que a página para de carregar automaticamente .
+             
   7- Para se certificar que deu tudo certo de o comando e vai ver que não tem nenhum container instalado :   sudo docker ps   
     
      Inicializacao dos containers em modo background
