@@ -4,7 +4,7 @@
 PROJETO_DIR="$HOME/servico-balanceamento"
 
 echo "==========================================="
-echo " SERVICO DE BALANCEAMENTO (Limpo)"
+echo " SERVICO DE BALANCEAMENTO (Interativo)"
 echo " Ubuntu WSL + Docker"
 echo "==========================================="
 
@@ -30,31 +30,43 @@ echo "[6/8] Criando frontend..."
 cat > frontend/index.html <<'EOF'
 <!DOCTYPE html>
 <html lang="pt-br">
-<head><meta charset="UTF-8"><title>Serviço de Balanceamento</title>
+<head><meta charset="UTF-8"><title>Monitoramento de Servidores</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
-body{background:#0f172a;height:100vh;display:flex;justify-content:center;align-items:center;color:white;}
-.card{width:700px;padding:50px;text-align:center;border-radius:30px;background:rgba(255,255,255,.08);backdrop-filter:blur(15px);}
+  *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
+  body{background:#0f172a;height:100vh;display:flex;justify-content:center;align-items:center;color:white;}
+  .card{width:700px;padding:50px;text-align:center;border-radius:30px;background:rgba(255,255,255,.08);backdrop-filter:blur(15px);}
 </style>
 </head>
 <body>
-<div class="card"><h1 id="serverName">Carregando...</h1><div id="alerta" style="color:#ef4444;"></div></div>
+<div class="card">
+    <h1 id="serverName">Carregando...</h1>
+    <div id="alerta" style="color:#ef4444; margin-top: 20px; font-size: 20px;"></div>
+</div>
 <script>
-const ordem = ["servidor1", "servidor2", "servidor3", "servidor2", "servidor1", "servidor2", "servidor3"];
+const servidores = ["servidor1", "servidor2", "servidor3"];
 let index = 0;
+
 async function atualizar(){
-  const atual = ordem[index];
+  const atual = servidores[index];
+  const serverEl = document.getElementById("serverName");
+  const alertaEl = document.getElementById("alerta");
+
   try{
     const r = await fetch("/api/" + atual + "/status.json?cache=" + Date.now());
     if(!r.ok) throw new Error();
     const d = await r.json();
-    document.getElementById("serverName").innerText = d.servidor;
-    document.getElementById("serverName").style.color = d.cor;
-    document.getElementById("alerta").innerText = "";
-  }catch(e){ document.getElementById("alerta").innerText = "⚠ " + atual + " caiu"; }
-  index = (index + 1) % ordem.length;
+    serverEl.innerText = d.servidor;
+    serverEl.style.color = d.cor;
+    alertaEl.innerText = ""; 
+  } catch(e){ 
+    serverEl.innerText = atual.toUpperCase() + " (OFF)";
+    serverEl.style.color = "#ef4444";
+    alertaEl.innerText = "⚠ " + atual + " está fora do ar"; 
+  }
+  
+  index = (index + 1) % servidores.length;
 }
-setInterval(atualizar, 1000);
+setInterval(atualizar, 2000);
 atualizar();
 </script>
 </body>
@@ -66,9 +78,9 @@ cat > nginx/conf.d/loadbalancer.conf <<EOF
 server {
     listen 8090;
     location / { root /usr/share/nginx/html; index index.html; }
-    location /api/servidor1/ { proxy_pass http://servidor1/; }
-    location /api/servidor2/ { proxy_pass http://servidor2/; }
-    location /api/servidor3/ { proxy_pass http://servidor3/; }
+    location /api/servidor1/ { proxy_pass http://servidor1/; proxy_connect_timeout 1s; }
+    location /api/servidor2/ { proxy_pass http://servidor2/; proxy_connect_timeout 1s; }
+    location /api/servidor3/ { proxy_pass http://servidor3/; proxy_connect_timeout 1s; }
 }
 EOF
 
@@ -77,18 +89,22 @@ cat > docker-compose.yml <<EOF
 services:
   servidor1:
     image: nginx:alpine
+    container_name: servidor1
     volumes:
       - ./servidor1:/usr/share/nginx/html
   servidor2:
     image: nginx:alpine
+    container_name: servidor2
     volumes:
       - ./servidor2:/usr/share/nginx/html
   servidor3:
     image: nginx:alpine
+    container_name: servidor3
     volumes:
       - ./servidor3:/usr/share/nginx/html
   balanceador:
     image: nginx:alpine
+    container_name: balanceador
     ports:
       - "8090:8090"
     volumes:
@@ -100,7 +116,8 @@ echo "Subindo containers..."
 sudo docker compose down
 sudo docker compose up -d
 
-echo "================================="
+echo "========================================================"
 echo " INSTALADO COM SUCESSO!"
 echo " Acesse: http://localhost:8090/"
-echo "================================="
+echo " DICA: Use 'sudo docker compose stop servidor1' para testar."
+echo "========================================================"
