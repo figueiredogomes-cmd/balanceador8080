@@ -201,13 +201,7 @@
                                                                                                                                                       do server2, marca o nó como inativo temporariamente e desvia o tráfego.
                                                                                                                                                       - Resultado Esperado: Sem que o utilizador note qualquer erro no ecrã (como falhas 502
                                                                                                                                                       Bad Gateway), o fluxo passa a ser:
-                                                                                                                                                      Servidor 1 → Servidor 3 → Servidor 1 → Servidor 3.
-                                                                                                                                                      
-                                                                                                                                                    
-                                                                                                                                                    Cenário de Teste: Recuperação de Serviços (Self-Healing)
-                                                                                                                                                      Inicie novamente o serviço que simulou a falha:
-                                                                                                                                                       sudo docker compose start servidor1
-                                                                                                                                                       
+                                                                                                                                                      Servidor 1 → Servidor 3 → Servidor 1 → Servidor 3.                                                                                                                                                                         
                                                                                                                                                              Comportamento da Monitorização (install.sh): 
                                                                                                                                                             O alerta sobre o estado offline do server2
                                                                                                                                                          deixa de ser exibido na consola de forma imediata.
