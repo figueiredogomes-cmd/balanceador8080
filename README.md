@@ -1,10 +1,11 @@
 Balanceamento de Carga e Failover Dinâmico com NGINX e Docker
-📖1  Visão Geral
+
+    📖1  Visão Geral
 Este projeto apresenta a implementação prática de um laboratório de infraestrutura de redes resiliente e de alta disponibilidade, estruturado de acordo com os princípios de Infraestrutura como Código (IaC).
 
 O objetivo é simular um cenário real de tráfego web, no qual o balanceador central distribui requisições entre servidores de aplicação redundantes.
 
-2 -Funcionalidades
+        2 -Funcionalidades
 🔄 Balanceamento de Carga (Round-Robin): distribuição alternada e justa das requisições.
 
 ⚠️ Failover Dinâmico: remoção imediata de servidores que falham.
