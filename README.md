@@ -2,6 +2,7 @@
                Curso: Tecnologia em Análise e Desenvolvimento de Sistemas / Redes
               Disciplina: Programação Para Redes
                Data: 12 de junho de 2026
+               Aluno:Lucas De Figueiredo Gomes
             #Implementação de Balanceamento de Carga e
             Failover Dinâmico com NGINX e Docker
             Identificador do Projeto: #balanceador8090
@@ -119,7 +120,7 @@
       Listing 2: Ficheiro nginx.conf
       events {}
       http {
-                # Definio do cluster de servidores de aplicacao
+                # Definir o cluster de servidores de aplicacao
             upstream backend {
             server server1:80 max_fails=2 fail_timeout=10s;
             5
@@ -177,7 +178,7 @@
              
            Abra uma janela de terminal paralela no WSL Ubuntu e execute o encerramento manual da
             instância número 2:
-            docker stop server2
+            sudo docker stop server2
             
             - Comportamento da Monitorização (install.sh): O terminal exibirá ativamente após 5
             segundos:
@@ -191,7 +192,7 @@
           
           Cenário de Teste: Recuperação de Serviços (Self-Healing)
             Inicie novamente o serviço que simulou a falha:
-            docker start server2
+            sudo docker start server2
         
              
                    Comportamento da Monitorização (install.sh): 
