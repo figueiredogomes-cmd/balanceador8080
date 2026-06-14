@@ -1,7 +1,10 @@
 #!/bin/bash
 
+# Define o local do projeto
+PROJETO_DIR="$HOME/servico-balanceamento"
+
 echo "==========================================="
-echo " SERVICO DE BALANCEAMENTO (Corrigido)"
+echo " SERVICO DE BALANCEAMENTO (Limpo)"
 echo " Ubuntu WSL + Docker"
 echo "==========================================="
 
@@ -15,8 +18,8 @@ echo "[3/8] Iniciando Docker..."
 sudo service docker start
 
 echo "[4/8] Criando estrutura..."
-mkdir -p ~/servico-balanceamento/{nginx/conf.d,frontend,servidor1,servidor2,servidor3}
-cd ~/servico-balanceamento
+mkdir -p "$PROJETO_DIR"/{nginx/conf.d,frontend,servidor1,servidor2,servidor3}
+cd "$PROJETO_DIR" || exit
 
 echo "[5/8] Criando paginas dos servidores..."
 echo '{"servidor":"Servidor1","cor":"#22c55e"}' > servidor1/status.json
@@ -24,7 +27,6 @@ echo '{"servidor":"Servidor2","cor":"#3b82f6"}' > servidor2/status.json
 echo '{"servidor":"Servidor3","cor":"#f59e0b"}' > servidor3/status.json
 
 echo "[6/8] Criando frontend..."
-# (Mantive seu HTML original aqui)
 cat > frontend/index.html <<'EOF'
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -73,12 +75,22 @@ EOF
 echo "[8/8] Criando docker-compose..."
 cat > docker-compose.yml <<EOF
 services:
-  servidor1: { image: nginx:alpine, volumes: ["./servidor1:/usr/share/nginx/html"] }
-  servidor2: { image: nginx:alpine, volumes: ["./servidor2:/usr/share/nginx/html"] }
-  servidor3: { image: nginx:alpine, volumes: ["./servidor3:/usr/share/nginx/html"] }
+  servidor1:
+    image: nginx:alpine
+    volumes:
+      - ./servidor1:/usr/share/nginx/html
+  servidor2:
+    image: nginx:alpine
+    volumes:
+      - ./servidor2:/usr/share/nginx/html
+  servidor3:
+    image: nginx:alpine
+    volumes:
+      - ./servidor3:/usr/share/nginx/html
   balanceador:
     image: nginx:alpine
-    ports: ["8090:8090"]
+    ports:
+      - "8090:8090"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - ./frontend:/usr/share/nginx/html
