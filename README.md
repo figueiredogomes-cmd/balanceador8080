@@ -98,8 +98,8 @@
                                          
                   6- Agora faça um refresh ou ctrl +r  ou f5 e atualize a página pois o navegador gravou essa página em memória temporária e verá que a página não foi encontrado atualmente ou copie e cole http://localhost:8090/  assim verá que a página para de carregar automaticamente .
              
-  7- Para se certificar que deu tudo certo de o comando e vai ver que não tem nenhum container instalado :   sudo docker ps   
-    
+              7- Para se certificar que deu tudo certo de o comando e vai ver que não tem nenhum container instalado :   sudo docker ps   
+                      
      Inicializacao dos containers em modo background
          docker-compose up -d
        echo "Ambiente iniciado com sucesso!"
