@@ -61,6 +61,9 @@ Passo 3-
   Cenário de Teste: Recuperação de Serviços (Self-Healing)
         Inicie novamente o serviço que simulou a falha seja no servidor 2 como mostrado no comando ou servidor1 ou servidor3 :
         sudo docker compose start servidor2
+
+
+
 Passo 4-
 Simulação de Falha de Infraestrutura (Failover)
 Abra uma janela de terminal paralela no WSL Ubuntu e execute o encerramento manual da
