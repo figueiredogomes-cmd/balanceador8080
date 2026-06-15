@@ -1,0 +1,16 @@
+Para visualizar sua estrutura você deve instalar com o sudo apt install tree:
+.
+├── docker-compose.yml
+├── frontend
+│   └── index.html
+├── nginx
+│   └── conf.d
+│       └── loadbalancer.conf
+├── servidor1
+│   └── status.json
+├── servidor2
+│   └── status.json
+└── servidor3
+    └── status.json
+
+7 directories, 6 files
