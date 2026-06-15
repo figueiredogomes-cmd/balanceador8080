@@ -59,15 +59,13 @@ bash ./setup.sh
 Passo 2- No seu navegador ou web browser cole http://localhost:8090/
 
 Passo 3- 
-  Cenário de Teste: Recuperação de Serviços (Self-Healing)
-        Inicie novamente o serviço que simulou a falha seja no servidor 2 como mostrado no comando ou servidor1 ou servidor3 :
+Cenário de Teste: Recuperação de Serviços (Self-Healing)
+Inicie novamente o serviço que simulou a falha seja no servidor 2 como mostrado no comando ou servidor1 ou servidor3 :
         cd .
         cd ..
         ls
         cd servico-balanceamento
-        sudo docker compose start servidor2
-
-
+        sudo docker-compose start servidor2
 
 Passo 4-
 Simulação de Falha de Infraestrutura (Failover)
@@ -77,15 +75,14 @@ Abra uma janela de terminal paralela no WSL Ubuntu e execute o encerramento manu
        cd ..
        ls
        cd servico-balanceamento
-       sudo docker compose stop servidor2
+       sudo docker-compose stop servidor2
         
         Passo 5 -Para Remoção de containers entre usando os comandos para encontrar a pasta servico-balanceamento :
               cd .
               cd ..
               ls
               cd servico-balanceamento 
-              sudo docker compose down
-
+              sudo docker-compose down
                                      
               Passo 6- Agora faça um refresh ou ctrl +r  ou f5 e atualize a página pois o navegador gravou essa página em memória temporária e verá que a página não foi encontrado atualmente ou copie e cole http://localhost:8090/  assim verá que a página para de carregar automaticamente .
          
