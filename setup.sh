@@ -4,35 +4,27 @@
 PROJETO_DIR="$HOME/servico-balanceamento"
 
 echo "================================================="
-echo "   SERVICO DE BALANCEAMENTO (Atualizado 2026)    "
+echo "   SERVICO DE BALANCEAMENTO (Correção Ubuntu 24)"
 echo "   Ubuntu WSL + Docker & Docker Compose Plugin   "
 echo "================================================="
 
 sleep 2
 
-echo "[1/8] Removendo pacotes antigos se existirem..."
+echo "[1/8] Removendo pacotes antigos ou mal configurados..."
 sudo apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null
+sudo rm -f /etc/apt/sources.list.d/docker.list
 
-echo "[2/8] Instalando dependencias e Docker + Docker Compose..."
+echo "[2/8] Instalando Docker via Script Oficial (Evita erro de GPG no Ubuntu Noble)..."
 sudo apt update -y
-sudo apt install -y ca-certificates curl gnupg lsb-release
+sudo apt install -y curl
 
-# Adiciona a chave oficial do Docker
-sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -y --yes -o /etc/apt/keyrings/docker.gpg 2>/dev/null
+# Script oficial do Docker que detecta e configura as chaves GPG perfeitamente para o Ubuntu 24.04
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
 
-# Configura o repositório oficial
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-sudo apt update -y
-# Instala o Docker completo com o plugin do Compose moderno
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-echo "[3/8] Garantindo que o Docker está rodando (Compatível com WSL)..."
-# No WSL, o 'service' ou o dockerd direto funcionam melhor que o systemctl
-sudo service docker start || sudo tg-dockerd &
+echo "[3/8] Iniciando o serviço do Docker..."
+# Comandos alternativos para garantir que o daemon do Docker suba no ambiente WSL
+sudo service docker start
 sleep 3
 
 echo "[4/8] Criando estrutura de arquivos..."
@@ -98,7 +90,6 @@ async function fazerRequisicaoBalancada(){
     const alertaEl = document.getElementById("alerta");
 
     try {
-        // O JavaScript sempre chama a mesma rota do balanceador
         const r = await fetch("/api/status?cache=" + Date.now());
         if(!r.ok) throw new Error("Erro de resposta");
         
@@ -108,7 +99,6 @@ async function fazerRequisicaoBalancada(){
         serverEl.style.color = d.cor;
         alertaEl.innerText = ""; 
 
-        // Incrementa dinamicamente quem respondeu
         if(contadores[d.servidor] !== undefined) {
             contadores[d.servidor]++;
             const idBuscar = "count-" + d.servidor.toLowerCase().replace(" ", "");
@@ -122,7 +112,6 @@ async function fazerRequisicaoBalancada(){
     }
 }
 
-// Executa o balanceamento a cada 1 segundo na tela
 setInterval(fazerRequisicaoBalancada, 1000);
 fazerRequisicaoBalancada();
 </script>
@@ -184,12 +173,15 @@ services:
       - ./frontend:/usr/share/nginx/html
 EOF
 
-echo "Iniciando os containers com o novo comando Docker Compose..."
-# Executa a limpeza e inicialização usando a sintaxe oficial atualizada (sem hífen)
+echo "Iniciando os containers..."
+# Remove o script temporário do instalador do docker
+rm -f get-docker.sh
+
+# Executa o compose usando a ferramenta nativa instalada pelo script
 sudo docker compose down --remove-orphans
 sudo docker compose up -d
 
 echo "========================================================"
-echo " Concluído! O ambiente foi consertado e iniciado."
+echo " Concluído! O Docker foi instalado com sucesso via script oficial."
 echo " Acesse no seu navegador: http://localhost:8090/"
 echo "========================================================"
