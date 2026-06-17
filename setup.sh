@@ -4,7 +4,7 @@
 PROJETO_DIR="$HOME/servico-balanceamento"
 
 echo "================================================="
-echo "   SERVICO DE BALANCEAMENTO (Correção Ubuntu 24)"
+echo "   SERVICO DE BALANCEAMENTO (Com Menu de Controle)"
 echo "   Ubuntu WSL + Docker & Docker Compose Plugin   "
 echo "================================================="
 
@@ -23,7 +23,6 @@ curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 
 echo "[3/8] Iniciando o serviço do Docker..."
-# Comandos alternativos para garantir que o daemon do Docker suba no ambiente WSL
 sudo service docker start
 sleep 3
 
@@ -173,15 +172,42 @@ services:
       - ./frontend:/usr/share/nginx/html
 EOF
 
-echo "Iniciando os containers..."
-# Remove o script temporário do instalador do docker
 rm -f get-docker.sh
 
-# Executa o compose usando a ferramenta nativa instalada pelo script
-sudo docker compose down --remove-orphans
+echo "Iniciando os containers pela primeira vez..."
 sudo docker compose up -d
 
-echo "========================================================"
-echo " Concluído! O Docker foi instalado com sucesso via script oficial."
-echo " Acesse no seu navegador: http://localhost:8090/"
-echo "========================================================"
+while true; do
+    echo ""
+    echo "========================================================"
+    echo " MENU DE CONTROLE DO LAB (Acesse: http://localhost:8090/)"
+    echo "========================================================"
+    echo " [1] INICIAR todos os containers (docker compose up -d)"
+    echo " [2] PARAR todos os containers temporariamente (docker compose stop)"
+    echo " [3] DESTRUIR/REMOVER todos os containers (docker compose down)"
+    echo " [4] SAIR do script (Mantém o estado atual dos containers)"
+    echo "========================================================"
+    read -p "Escolha uma opção [1-4]: " OPCAO
+
+    case $OPCAO in
+        1)
+            echo "Iniciando e subindo os containers de balanceamento..."
+            sudo docker compose up -d
+            ;;
+        2)
+            echo "Parando os containers (sem apagar os dados)..."
+            sudo docker compose stop
+            ;;
+        3)
+            echo "Destruindo e removendo os containers completamente..."
+            sudo docker compose down --remove-orphans
+            ;;
+        4)
+            echo "Saindo... Obrigado!"
+            break
+            ;;
+        *)
+            echo "Opção inválida! Escolha de 1 a 4."
+            ;;
+    esac
+done
