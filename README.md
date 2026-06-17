@@ -52,13 +52,13 @@ Instalação do WSL e do Ubuntu
 Passo 1 
 . Clonar o repositório
 Código
-     git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
+     git clone https://github.com/figueiredogomes-cmd/balanceador8080.git
      
-    cd balanceador8090
+    cd balanceador8080
     
      bash ./setup.sh
  
-Passo 2- No seu navegador ou web browser cole http://localhost:8090/
+Passo 2- No seu navegador ou web browser cole http://localhost:8080/
 
 Passo 3- 
 Cenário de Teste: Recuperação de Serviços (Self-Healing)
