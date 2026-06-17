@@ -23,7 +23,7 @@ Monitoramento: script em Bash que valida continuamente o estado dos containers.
 
 Esquema Simplificado
 Código
-Usuário (Porta 8090)
+Usuário (Porta 8080)
         |
    Balanceador (NGINX Proxy Reverso)
         |
