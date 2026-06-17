@@ -1,45 +1,44 @@
 #!/bin/bash
 
+# Define o local do projeto
 PROJETO_DIR="$HOME/cluster-balanceado"
 
 echo "=========================================================="
-echo " CLUSTER NGINX LOAD BALANCER (Porta 8090)"
+echo " CONFIGURANDO CLUSTER NGINX (Porta 8090)"
 echo "=========================================================="
 
-# 1. Verificação de ambiente
+# 1. Verifica se o Docker está acessível
 if ! docker info >/dev/null 2>&1; then
-    echo "[!] Docker não detectado. Inicie o Docker Desktop (Windows) ou o daemon do Docker."
+    echo "[ERRO] Docker não está rodando no WSL."
+    echo "Dica: Abra o Docker Desktop no Windows e ative a integração WSL."
     exit 1
 fi
 
-# 2. Instalação do Plugin Docker Compose (se necessário)
-if ! docker compose version >/dev/null 2>&1; then
-    echo "[*] Instalando Docker Compose Plugin..."
-    sudo apt-get update && sudo apt-get install -y docker-compose-plugin
-fi
-
-# 3. Preparação
+# 2. Prepara diretórios
 mkdir -p "$PROJETO_DIR"/{nginx/conf.d,frontend,srv1,srv2,srv3}
 cd "$PROJETO_DIR" || exit
 
-# 4. Criando arquivos de status
+# 3. Limpa containers antigos para evitar conflitos (Mitigação de erro)
+docker compose down --remove-orphans > /dev/null 2>&1
+
+# 4. Cria os arquivos de status dos servidores
 echo '{"servidor":"Servidor 01","cor":"#22c55e"}' > srv1/status.json
 echo '{"servidor":"Servidor 02","cor":"#3b82f6"}' > srv2/status.json
 echo '{"servidor":"Servidor 03","cor":"#f59e0b"}' > srv3/status.json
 
-# 5. Frontend (Monitoramento em tempo real)
+# 5. Cria o Frontend
 cat > frontend/index.html <<'EOF'
 <!DOCTYPE html>
 <html>
-<head><title>LB 8090 Monitor</title>
+<head><title>LB 8090 - Monitor</title>
 <style>
-body{background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding-top:50px;}
-.card{display:inline-block;padding:20px;background:#1e293b;border-radius:10px;}
+body{background:#0f172a;color:#fff;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;}
+.card{padding:30px;background:#1e293b;border-radius:15px;text-align:center;}
 </style>
 </head>
 <body>
 <div class="card">
-    <h1 id="status">Conectando...</h1>
+    <h1 id="status">Monitorando...</h1>
     <p>Srv1: <span id="c1">0</span> | Srv2: <span id="c2">0</span> | Srv3: <span id="c3">0</span></p>
 </div>
 <script>
@@ -62,7 +61,7 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padd
 </html>
 EOF
 
-# 6. Configuração Nginx (Upstream com max_fails)
+# 6. Configuração Nginx (Porta 8090)
 cat > nginx/conf.d/loadbalancer.conf <<EOF
 upstream cluster {
     server srv1:80 max_fails=1 fail_timeout=1s;
@@ -71,12 +70,12 @@ upstream cluster {
 }
 server {
     listen 8090;
-    location / { root /usr/share/nginx/html; }
-    location /api/status { proxy_pass http://cluster/status.json; proxy_connect_timeout 0.5s; }
+    location / { root /usr/share/nginx/html; index index.html; }
+    location /api/status { proxy_pass http://cluster/status.json; }
 }
 EOF
 
-# 7. Docker Compose (Nomes fixos para evitar conflito)
+# 7. Arquivo Docker Compose
 cat > docker-compose.yml <<EOF
 services:
   srv1: { image: nginx:alpine, container_name: srv1, volumes: ["./srv1:/usr/share/nginx/html"] }
@@ -91,26 +90,10 @@ services:
       - ./frontend:/usr/share/nginx/html
 EOF
 
-# 8. Menu de Gestão
-echo "[+] Iniciando cluster..."
-sudo docker compose down --remove-orphans
-sudo docker compose up -d
+# 8. Inicia tudo
+docker compose up -d
 
-while true; do
-    echo "------------------------------------"
-    echo "GESTÃO DO CLUSTER (Acesse http://localhost:8090)"
-    echo "1) Parar servidor 1 | 2) Iniciar servidor 1"
-    echo "3) Parar servidor 2 | 4) Iniciar servidor 2"
-    echo "5) Parar servidor 3 | 6) Iniciar servidor 3"
-    echo "7) Sair do menu (Cluster continua rodando)"
-    read -p "Escolha: " opt
-    case $opt in
-        1) sudo docker compose stop srv1 ;;
-        2) sudo docker compose start srv1 ;;
-        3) sudo docker compose stop srv2 ;;
-        4) sudo docker compose start srv2 ;;
-        5) sudo docker compose stop srv3 ;;
-        6) sudo docker compose start srv3 ;;
-        7) break ;;
-    esac
-done
+echo "=========================================================="
+echo " CLUSTER ATIVO NA PORTA 8090"
+echo " Acesse: http://localhost:8090"
+echo "=========================================================="
