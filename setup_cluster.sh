@@ -1,36 +1,53 @@
 #!/bin/bash
 
+# Diretório do projeto
 PROJETO_DIR="$HOME/cluster-balanceado"
 
 echo "=========================================================="
-echo " CONFIGURANDO CLUSTER RESILIENTE (Nginx Load Balancer)"
+echo " CONFIGURANDO CLUSTER NGINX (LB 8090) - REESTRUTURADO"
 echo "=========================================================="
 
-# 1. Validação de Docker
-if ! docker info >/dev/null 2>&1; then
-    echo "[ERRO] Docker não está rodando no seu WSL/Ubuntu."
-    echo "Dica: Abra o Docker Desktop no Windows e certifique-se que a integração está ativa."
-    exit 1
+# 1. Instalar Docker e Docker Compose Plugin se não existirem
+if ! command -v docker &> /dev/null; then
+    echo "[*] Instalando Docker..."
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sudo sh get-docker.sh
+    rm get-docker.sh
 fi
 
-# 2. Instalação do Docker Compose Plugin
-if ! docker compose version >/dev/null 2>&1; then
-    sudo apt-get update && sudo apt-get install -y docker-compose-plugin
+if ! docker compose version &> /dev/null; then
+    echo "[*] Instalando Docker Compose Plugin..."
+    sudo apt-get update
+    sudo apt-get install -y docker-compose-plugin
 fi
+
+# 2. Aguardar Docker estar pronto (Crucial para WSL)
+echo "[*] Verificando conexão com Docker..."
+timeout=20
+while ! docker info >/dev/null 2>&1; do
+    echo "    Aguardando o Docker Desktop iniciar (no Windows)..."
+    sleep 2
+    ((timeout--))
+    if [ $timeout -le 0 ]; then
+        echo "[!] Erro: Docker não está respondendo. Verifique o Docker Desktop."
+        exit 1
+    fi
+done
 
 # 3. Preparação do ambiente
 mkdir -p "$PROJETO_DIR"/{nginx/conf.d,frontend,srv1,srv2,srv3}
 cd "$PROJETO_DIR" || exit
 
-# 4. Limpeza total de conflitos (para não dar erro de container existente)
+# 4. Limpeza (Evita erro de Conflict)
+echo "[*] Limpando instâncias anteriores..."
 docker compose down --remove-orphans >/dev/null 2>&1
 
-# 5. Criando arquivos de status dos servidores
+# 5. Criando arquivos de status
 echo '{"servidor":"Servidor 01","cor":"#22c55e"}' > srv1/status.json
 echo '{"servidor":"Servidor 02","cor":"#3b82f6"}' > srv2/status.json
 echo '{"servidor":"Servidor 03","cor":"#f59e0b"}' > srv3/status.json
 
-# 6. Criando Dashboard com persistência de contagem
+# 6. Frontend de Monitoramento
 cat > frontend/index.html <<'EOF'
 <!DOCTYPE html>
 <html>
@@ -65,21 +82,21 @@ body{background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padd
 </html>
 EOF
 
-# 7. Configuração Nginx (O "Segredo" do Load Balancer)
+# 7. Configuração Nginx (Conforme o seu quadro)
 cat > nginx/conf.d/loadbalancer.conf <<EOF
 upstream cluster {
-    server srv1:80 max_fails=1 fail_timeout=1s;
-    server srv2:80 max_fails=1 fail_timeout=1s;
-    server srv3:80 max_fails=1 fail_timeout=1s;
+    server srv1:80;
+    server srv2:80;
+    server srv3:80;
 }
 server {
     listen 8090;
     location / { root /usr/share/nginx/html; }
-    location /api/status { proxy_pass http://cluster/status.json; proxy_connect_timeout 0.5s; }
+    location /api/status { proxy_pass http://cluster/status.json; }
 }
 EOF
 
-# 8. Configuração do Docker Compose
+# 8. Docker Compose
 cat > docker-compose.yml <<EOF
 services:
   srv1: { image: nginx:alpine, container_name: srv1, volumes: ["./srv1:/usr/share/nginx/html"] }
@@ -94,13 +111,11 @@ services:
       - ./frontend:/usr/share/nginx/html
 EOF
 
-# 9. Execução Automática
+# 9. Iniciar
+echo "[*] Subindo cluster..."
 docker compose up -d
 
 echo "=========================================================="
-echo " CLUSTER RODANDO! ACESSE: http://localhost:8090"
-echo " Comandos disponíveis nesta pasta:"
-echo " - Parar cluster: docker compose stop"
-echo " - Subir cluster: docker compose up -d"
-echo " - Parar servidor 1: docker compose stop srv1"
+echo " CONFIGURAÇÃO FINALIZADA!"
+echo " Acesse: http://localhost:8090"
 echo "=========================================================="
