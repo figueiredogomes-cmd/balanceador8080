@@ -2,39 +2,116 @@
 
 PROJETO="$HOME/cluster-balanceado"
 
-echo "Instalando Docker Compose clássico..."
+echo "======================================"
+echo " CLUSTER NGINX LOAD BALANCER"
+echo "======================================"
 
-sudo apt update
+#
+# Docker
+#
 
-sudo apt install -y docker.io docker-compose curl
+if command -v docker >/dev/null 2>&1; then
 
-sudo systemctl enable docker 2>/dev/null || true
-sudo service docker start
+    echo "[OK] Docker já instalado"
 
-echo "Limpando ambiente anterior..."
+else
 
-sudo docker rm -f balanceador srv1 srv2 srv3 2>/dev/null || true
+    echo "[INFO] Instalando Docker..."
 
-mkdir -p $PROJETO
+    curl -fsSL https://get.docker.com -o get-docker.sh
 
-cd $PROJETO || exit
+    sudo sh get-docker.sh
+
+    rm -f get-docker.sh
+
+fi
+
+#
+# Docker Compose clássico
+#
+
+if command -v docker-compose >/dev/null 2>&1; then
+
+    echo "[OK] Docker Compose já instalado"
+
+else
+
+    echo "[INFO] Instalando Docker Compose..."
+
+    sudo apt update
+
+    sudo apt install -y docker-compose
+
+fi
+
+#
+# Docker Service
+#
+
+sudo service docker start >/dev/null 2>&1 || true
+
+#
+# Limpeza
+#
+
+echo "[INFO] Limpando ambiente anterior..."
+
+sudo docker rm -f \
+balanceador \
+srv1 \
+srv2 \
+srv3 \
+2>/dev/null || true
+
+sudo docker network prune -f >/dev/null 2>&1 || true
+
+#
+# Estrutura
+#
+
+mkdir -p "$PROJETO"
+
+cd "$PROJETO" || exit 1
 
 mkdir -p nginx/conf.d
 mkdir -p srv1
 mkdir -p srv2
 mkdir -p srv3
 
+#
+# Servidores
+#
+
 cat > srv1/index.html <<EOF
+<!DOCTYPE html>
+<html>
+<body style="font-family:Arial;text-align:center">
 <h1>Servidor 1</h1>
+</body>
+</html>
 EOF
 
 cat > srv2/index.html <<EOF
+<!DOCTYPE html>
+<html>
+<body style="font-family:Arial;text-align:center">
 <h1>Servidor 2</h1>
+</body>
+</html>
 EOF
 
 cat > srv3/index.html <<EOF
+<!DOCTYPE html>
+<html>
+<body style="font-family:Arial;text-align:center">
 <h1>Servidor 3</h1>
+</body>
+</html>
 EOF
+
+#
+# Nginx LB
+#
 
 cat > nginx/conf.d/default.conf <<EOF
 upstream backend {
@@ -63,6 +140,10 @@ server {
 
 }
 EOF
+
+#
+# Compose
+#
 
 cat > docker-compose.yml <<EOF
 version: '3.8'
@@ -104,16 +185,23 @@ services:
       - srv3
 EOF
 
-echo "Subindo cluster..."
+#
+# Sobe ambiente
+#
 
-sudo docker-compose down
+echo "[INFO] Subindo cluster..."
+
+sudo docker-compose down >/dev/null 2>&1 || true
 
 sudo docker-compose up -d
 
 echo ""
-echo "Cluster iniciado"
+echo "======================================"
+echo " CLUSTER INICIADO COM SUCESSO"
+echo "======================================"
 echo ""
 echo "Acesse:"
+echo ""
 echo "http://localhost:8090"
 echo ""
 
