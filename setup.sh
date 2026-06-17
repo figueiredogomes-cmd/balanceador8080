@@ -22,65 +22,126 @@ mkdir -p "$PROJETO_DIR"/{nginx/conf.d,frontend,servidor1,servidor2,servidor3}
 cd "$PROJETO_DIR" || exit
 
 echo "[5/8] Criando paginas dos servidores..."
-echo '{"servidor":"Servidor1","cor":"#22c55e"}' > servidor1/status.json
-echo '{"servidor":"Servidor2","cor":"#3b82f6"}' > servidor2/status.json
-echo '{"servidor":"Servidor3","cor":"#f59e0b"}' > servidor3/status.json
+echo '{"servidor":"Servidor 1","cor":"#22c55e"}' > servidor1/status.json
+echo '{"servidor":"Servidor 2","cor":"#3b82f6"}' > servidor2/status.json
+echo '{"servidor":"Servidor 3","cor":"#f59e0b"}' > servidor3/status.json
 
-echo "[6/8] Criando frontend..."
+echo "[6/8] Criando frontend com contador..."
 cat > frontend/index.html <<'EOF'
 <!DOCTYPE html>
 <html lang="pt-br">
-<head><meta charset="UTF-8"><title>Monitoramento de Servidores</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
-  body{background:#0f172a;height:100vh;display:flex;justify-content:center;align-items:center;color:white;}
-  .card{width:700px;padding:50px;text-align:center;border-radius:30px;background:rgba(255,255,255,.08);backdrop-filter:blur(15px);}
-</style>
+<head>
+    <meta charset="UTF-8">
+    <title>Monitoramento de Balanceamento</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
+        body{background:#0f172a;height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;color:white;}
+        .card{width:600px;padding:40px;text-align:center;border-radius:20px;background:rgba(255,255,255,.05);backdrop-filter:blur(15px);box-shadow: 0 4px 30px rgba(0,0,0,0.5);}
+        h1{font-size: 2.5rem; margin-bottom: 20px;}
+        .stats {margin-top: 30px; display: flex; justify-content: space-around; border-top: 1px solid #334155; padding-top: 20px;}
+        .stat-box {padding: 10px; border-radius: 8px; background: #1e293b; width: 30%;}
+        .stat-count {font-size: 1.8rem; font-weight: bold; margin-top: 5px;}
+        #alerta {color:#ef4444; margin-top: 20px; font-size: 16px; font-weight: bold;}
+    </style>
 </head>
 <body>
+
 <div class="card">
-    <h1 id="serverName">Carregando...</h1>
-    <div id="alerta" style="color:#ef4444; margin-top: 20px; font-size: 20px;"></div>
+    <p style="color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Última requisição respondida por:</p>
+    <h1 id="serverName">Conectando...</h1>
+    
+    <div id="alerta"></div>
+
+    <div class="stats">
+        <div class="stat-box" style="border-bottom: 4px solid #22c55e;">
+            <div>Servidor 1</div>
+            <div class="stat-count" id="count-servidor1" style="color: #22c55e;">0</div>
+        </div>
+        <div class="stat-box" style="border-bottom: 4px solid #3b82f6;">
+            <div>Servidor 2</div>
+            <div class="stat-count" id="count-servidor2" style="color: #3b82f6;">0</div>
+        </div>
+        <div class="stat-box" style="border-bottom: 4px solid #f59e0b;">
+            <div>Servidor 3</div>
+            <div class="stat-count" id="count-servidor3" style="color: #f59e0b;">0</div>
+        </div>
+    </div>
 </div>
+
 <script>
-const servidores = ["servidor1", "servidor2", "servidor3"];
-let index = 0;
+// Contadores locais de requisições recebidas de cada servidor
+const contadores = {
+    "Servidor 1": 0,
+    "Servidor 2": 0,
+    "Servidor 3": 0
+};
 
-async function atualizar(){
-  const atual = servidores[index];
-  const serverEl = document.getElementById("serverName");
-  const alertaEl = document.getElementById("alerta");
+async function fazerRequisicaoBalancada(){
+    const serverEl = document.getElementById("serverName");
+    const alertaEl = document.getElementById("alerta");
 
-  try{
-    const r = await fetch("/api/" + atual + "/status.json?cache=" + Date.now());
-    if(!r.ok) throw new Error();
-    const d = await r.json();
-    serverEl.innerText = d.servidor;
-    serverEl.style.color = d.cor;
-    alertaEl.innerText = ""; 
-  } catch(e){ 
-    serverEl.innerText = atual.toUpperCase() + " (OFF)";
-    serverEl.style.color = "#ef4444";
-    alertaEl.innerText = "⚠ " + atual + " está fora do ar"; 
-  }
-  
-  index = (index + 1) % servidores.length;
+    try {
+        // Bate na rota única do balanceador. O Nginx vai decidir quem responde.
+        const r = await fetch("/api/status?cache=" + Date.now());
+        if(!r.ok) throw new Error("Erro no servidor");
+        
+        const d = await r.json();
+        
+        // Atualiza a tela com o servidor que respondeu agora
+        serverEl.innerText = d.servidor;
+        serverEl.style.color = d.cor;
+        alertaEl.innerText = ""; 
+
+        // Incrementa o contador do servidor que respondeu
+        if(contadores[d.servidor] !== undefined) {
+            contadores[d.servidor]++;
+            const idBuscar = "count-" + d.servidor.toLowerCase().replace(" ", "");
+            document.getElementById(idBuscar).innerText = contadores[d.servidor];
+        }
+
+    } catch(e) { 
+        serverEl.innerText = "FALHA NO BALANCEADOR";
+        serverEl.style.color = "#ef4444";
+        alertaEl.innerText = "⚠ Não foi possível obter resposta de nenhum servidor ativo."; 
+    }
 }
-setInterval(atualizar, 2000);
-atualizar();
+
+// Faz requisições rápidas a cada 1 segundo para ver o balanceamento acontecer em tempo real
+setInterval(fazerRequisicaoBalancada, 1000);
+fazerRequisicaoBalancada();
 </script>
 </body>
 </html>
 EOF
 
-echo "[7/8] Criando nginx..."
+echo "[7/8] Criando configuração de Load Balancer do Nginx..."
 cat > nginx/conf.d/loadbalancer.conf <<EOF
+# Define o grupo de servidores para balanceamento (Round Robin padrão)
+upstream meus_servidores {
+    server servidor1:80 max_fails=1 fail_timeout=2s;
+    server servidor2:80 max_fails=1 fail_timeout=2s;
+    server servidor3:80 max_fails=1 fail_timeout=2s;
+}
+
 server {
     listen 8090;
-    location / { root /usr/share/nginx/html; index index.html; }
-    location /api/servidor1/ { proxy_pass http://servidor1/; proxy_connect_timeout 1s; }
-    location /api/servidor2/ { proxy_pass http://servidor2/; proxy_connect_timeout 1s; }
-    location /api/servidor3/ { proxy_pass http://servidor3/; proxy_connect_timeout 1s; }
+
+    # Serve o Frontend estático
+    location / {
+        root /usr/share/nginx/html;
+        index index.html;
+    }
+
+    # Rota da API que distribui a carga entre os servidores do upstream
+    location /api/status {
+        proxy_pass http://meus_servidores/status.json;
+        proxy_connect_timeout 1s;
+        proxy_read_timeout 1s;
+        
+        # Passa cabeçalhos importantes para os servidores saberem a origem do tráfego
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+    }
 }
 EOF
 
@@ -119,5 +180,12 @@ sudo docker compose up -d
 echo "========================================================"
 echo " INSTALADO COM SUCESSO!"
 echo " Acesse: http://localhost:8090/"
-echo " DICA: Use 'sudo docker compose stop servidor1' para testar."
+echo " "
+echo " O que mudou:"
+echo " 1. O Nginx agora usa 'upstream' para balancear de verdade."
+echo " 2. A requisição vai sempre para a mesma URL (/api/status)."
+echo " 3. A tela mostra o contador de requisições de cada servidor."
+echo " "
+echo " TESTE DE QUEDA: rode 'sudo docker compose stop servidor2'"
+echo " Veja que o contador do Servidor 2 para, mas os outros continuam!"
 echo "========================================================"
