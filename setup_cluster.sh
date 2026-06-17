@@ -1,85 +1,83 @@
 #!/bin/bash
 
-# Define o local do projeto
 PROJETO_DIR="$HOME/cluster-balanceado"
 
 echo "================================================="
-echo "   SISTEMA DE BALANCEAMENTO DE CARGA NATIVO      "
+echo "   SISTEMA DE BALANCEAMENTO DE CARGA RESILIENTE  "
 echo "================================================="
 
-# 1. Checagem de ambiente e Docker
-echo "[1/6] Verificando conexão com o Docker..."
-
+# 1. Checagem de Docker no WSL
 if ! docker info >/dev/null 2>&1; then
-    echo "[!] Docker não está rodando."
-    echo "[!] DICA: Se você usa Docker Desktop no Windows, abra-o antes de rodar este script."
-    echo "[!] Se usa Docker nativo no Linux, tente: sudo service docker start"
+    echo "[!] Docker não está respondendo. Por favor, certifique-se que o Docker Desktop (Windows) está aberto ou que o serviço está ativo."
     exit 1
 fi
-echo "[+] Docker está rodando e acessível!"
 
-# 2. Instalação do Docker Compose (Plugin oficial)
-echo "[2/6] Verificando Docker Compose..."
+# 2. Instalação automática do Docker Compose Plugin
 if ! docker compose version >/dev/null 2>&1; then
+    echo "[*] Instalando Docker Compose Plugin..."
     sudo apt-get update && sudo apt-get install -y docker-compose-plugin
 fi
 
-# 3. Preparação das Pastas
-echo "[3/6] Preparando estrutura..."
+# 3. Preparação das Pastas e Limpeza
+echo "[*] Preparando diretórios e removendo conflitos..."
 mkdir -p "$PROJETO_DIR"/{nginx/conf.d,frontend,srv1,srv2,srv3}
 cd "$PROJETO_DIR" || exit
+sudo docker compose down --remove-orphans >/dev/null 2>&1
 
 # 4. Criando Arquivos de Status
 echo '{"servidor":"Servidor Web 01","cor":"#22c55e"}' > srv1/status.json
 echo '{"servidor":"Servidor Web 02","cor":"#3b82f6"}' > srv2/status.json
 echo '{"servidor":"Servidor Web 03","cor":"#f59e0b"}' > srv3/status.json
 
-# 5. Criando o Dashboard (Frontend)
+# 5. Frontend com persistência de contagem
 cat > frontend/index.html <<'EOF'
 <!DOCTYPE html>
 <html lang="pt-br">
-<head><meta charset="UTF-8"><title>Dashboard</title>
+<head><meta charset="UTF-8"><title>Cluster Dashboard</title>
 <style>
-body{background:#0f172a;color:#fff;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;}
-.card{padding:40px;text-align:center;background:#1e293b;border-radius:20px;}
+    body{background:#0f172a;color:#fff;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;}
+    .card{padding:30px;background:#1e293b;border-radius:15px;text-align:center;width:400px;}
+    .counter{font-size:24px;font-weight:bold;margin:10px 0;}
 </style>
 </head>
 <body>
 <div class="card">
-    <h1 id="srv_nome">Carregando...</h1>
-    <div id="status">Aguardando balanceador...</div>
+    <h1 id="status">Conectando...</h1>
+    <div id="contadores">
+        <p>Srv1: <span id="c1">0</span> | Srv2: <span id="c2">0</span> | Srv3: <span id="c3">0</span></p>
+    </div>
 </div>
 <script>
-async function atualizar(){
-    try {
-        const r = await fetch('/api/status?cache=' + Date.now());
-        const d = await r.json();
-        document.getElementById("srv_nome").innerText = d.servidor;
-        document.getElementById("srv_nome").style.color = d.cor;
-    } catch(e) {
-        document.getElementById("status").innerText = "Cluster indisponível";
+    let counts = { "Servidor Web 01": 0, "Servidor Web 02": 0, "Servidor Web 03": 0 };
+    async function update() {
+        try {
+            const r = await fetch('/api/status?t=' + Date.now());
+            const d = await r.json();
+            document.getElementById("status").innerText = d.servidor;
+            document.getElementById("status").style.color = d.cor;
+            counts[d.servidor]++;
+            document.getElementById("c1").innerText = counts["Servidor Web 01"];
+            document.getElementById("c2").innerText = counts["Servidor Web 02"];
+            document.getElementById("c3").innerText = counts["Servidor Web 03"];
+        } catch(e) { document.getElementById("status").innerText = "Servidor Offline"; }
     }
-}
-setInterval(atualizar, 1000);
-atualizar();
+    setInterval(update, 800);
 </script>
 </body>
 </html>
 EOF
 
-# 6. Configuração Nginx (Upstream)
+# 6. Nginx Config
 cat > nginx/conf.d/loadbalancer.conf <<EOF
-upstream cluster_aplicacao {
-    server srv1:80;
-    server srv2:80;
-    server srv3:80;
+upstream cluster {
+    server srv1:80 max_fails=1 fail_timeout=1s;
+    server srv2:80 max_fails=1 fail_timeout=1s;
+    server srv3:80 max_fails=1 fail_timeout=1s;
 }
 server {
     listen 8080;
-    location / { root /usr/share/nginx/html; index index.html; }
-    location /api/status { 
-        proxy_pass http://cluster_aplicacao/status.json; 
-    }
+    location / { root /usr/share/nginx/html; }
+    location /api/status { proxy_pass http://cluster/status.json; proxy_connect_timeout 0.5s; }
 }
 EOF
 
@@ -99,10 +97,5 @@ services:
 EOF
 
 # 8. Execução
-echo "[+] Iniciando containers..."
-sudo docker compose down --remove-orphans
 sudo docker compose up -d
-
-echo "================================================="
-echo " SUcesso! Acesse: http://localhost:8080"
-echo "================================================="
+echo "[+] Sucesso! Acesse http://localhost:8080"
