@@ -56,7 +56,7 @@ Código
      
     cd balanceador8090
     
-     bash cluster_resiliente.sh
+     bash setup_cluster.sh
  
 Passo 2- No seu navegador ou web browser cole http://localhost:8080/
 
