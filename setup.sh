@@ -3,21 +3,39 @@
 # Define o local do projeto
 PROJETO_DIR="$HOME/servico-balanceamento"
 
-echo "==========================================="
-echo " SERVICO DE BALANCEAMENTO (Interativo)"
-echo " Ubuntu WSL + Docker"
-echo "==========================================="
+echo "================================================="
+echo "   SERVICO DE BALANCEAMENTO (Atualizado 2026)    "
+echo "   Ubuntu WSL + Docker & Docker Compose Plugin   "
+echo "================================================="
 
 sleep 2
 
-echo "[1/8] Atualizando e instalando dependencias..."
+echo "[1/8] Removendo pacotes antigos se existirem..."
+sudo apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null
+
+echo "[2/8] Instalando dependencias e Docker + Docker Compose..."
 sudo apt update -y
-sudo apt install -y docker.io curl git
+sudo apt install -y ca-certificates curl gnupg lsb-release
 
-echo "[3/8] Iniciando Docker..."
-sudo service docker start
+# Adiciona a chave oficial do Docker
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -y --yes -o /etc/apt/keyrings/docker.gpg 2>/dev/null
 
-echo "[4/8] Criando estrutura..."
+# Configura o repositório oficial
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt update -y
+# Instala o Docker completo com o plugin do Compose moderno
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+echo "[3/8] Garantindo que o Docker está rodando (Compatível com WSL)..."
+# No WSL, o 'service' ou o dockerd direto funcionam melhor que o systemctl
+sudo service docker start || sudo tg-dockerd &
+sleep 3
+
+echo "[4/8] Criando estrutura de arquivos..."
 mkdir -p "$PROJETO_DIR"/{nginx/conf.d,frontend,servidor1,servidor2,servidor3}
 cd "$PROJETO_DIR" || exit
 
@@ -26,7 +44,7 @@ echo '{"servidor":"Servidor 1","cor":"#22c55e"}' > servidor1/status.json
 echo '{"servidor":"Servidor 2","cor":"#3b82f6"}' > servidor2/status.json
 echo '{"servidor":"Servidor 3","cor":"#f59e0b"}' > servidor3/status.json
 
-echo "[6/8] Criando frontend com contador..."
+echo "[6/8] Criando frontend com contador de carga..."
 cat > frontend/index.html <<'EOF'
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -47,7 +65,7 @@ cat > frontend/index.html <<'EOF'
 <body>
 
 <div class="card">
-    <p style="color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Última requisição respondida por:</p>
+    <p style="color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Requisição enviada ao Balanceador:</p>
     <h1 id="serverName">Conectando...</h1>
     
     <div id="alerta"></div>
@@ -69,7 +87,6 @@ cat > frontend/index.html <<'EOF'
 </div>
 
 <script>
-// Contadores locais de requisições recebidas de cada servidor
 const contadores = {
     "Servidor 1": 0,
     "Servidor 2": 0,
@@ -81,18 +98,17 @@ async function fazerRequisicaoBalancada(){
     const alertaEl = document.getElementById("alerta");
 
     try {
-        // Bate na rota única do balanceador. O Nginx vai decidir quem responde.
+        // O JavaScript sempre chama a mesma rota do balanceador
         const r = await fetch("/api/status?cache=" + Date.now());
-        if(!r.ok) throw new Error("Erro no servidor");
+        if(!r.ok) throw new Error("Erro de resposta");
         
         const d = await r.json();
         
-        // Atualiza a tela com o servidor que respondeu agora
         serverEl.innerText = d.servidor;
         serverEl.style.color = d.cor;
         alertaEl.innerText = ""; 
 
-        // Incrementa o contador do servidor que respondeu
+        // Incrementa dinamicamente quem respondeu
         if(contadores[d.servidor] !== undefined) {
             contadores[d.servidor]++;
             const idBuscar = "count-" + d.servidor.toLowerCase().replace(" ", "");
@@ -100,13 +116,13 @@ async function fazerRequisicaoBalancada(){
         }
 
     } catch(e) { 
-        serverEl.innerText = "FALHA NO BALANCEADOR";
+        serverEl.innerText = "ERRO DE CONEXÃO";
         serverEl.style.color = "#ef4444";
-        alertaEl.innerText = "⚠ Não foi possível obter resposta de nenhum servidor ativo."; 
+        alertaEl.innerText = "⚠ Nenhum servidor respondeu a tempo."; 
     }
 }
 
-// Faz requisições rápidas a cada 1 segundo para ver o balanceamento acontecer em tempo real
+// Executa o balanceamento a cada 1 segundo na tela
 setInterval(fazerRequisicaoBalancada, 1000);
 fazerRequisicaoBalancada();
 </script>
@@ -114,10 +130,9 @@ fazerRequisicaoBalancada();
 </html>
 EOF
 
-echo "[7/8] Criando configuração de Load Balancer do Nginx..."
+echo "[7/8] Criando configuracao do Nginx Load Balancer..."
 cat > nginx/conf.d/loadbalancer.conf <<EOF
-# Define o grupo de servidores para balanceamento (Round Robin padrão)
-upstream meus_servidores {
+upstream grupo_servidores {
     server servidor1:80 max_fails=1 fail_timeout=2s;
     server servidor2:80 max_fails=1 fail_timeout=2s;
     server servidor3:80 max_fails=1 fail_timeout=2s;
@@ -126,26 +141,22 @@ upstream meus_servidores {
 server {
     listen 8090;
 
-    # Serve o Frontend estático
     location / {
         root /usr/share/nginx/html;
         index index.html;
     }
 
-    # Rota da API que distribui a carga entre os servidores do upstream
     location /api/status {
-        proxy_pass http://meus_servidores/status.json;
+        proxy_pass http://grupo_servidores/status.json;
         proxy_connect_timeout 1s;
         proxy_read_timeout 1s;
-        
-        # Passa cabeçalhos importantes para os servidores saberem a origem do tráfego
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
     }
 }
 EOF
 
-echo "[8/8] Criando docker-compose..."
+echo "[8/8] Criando docker-compose.yml..."
 cat > docker-compose.yml <<EOF
 services:
   servidor1:
@@ -173,19 +184,12 @@ services:
       - ./frontend:/usr/share/nginx/html
 EOF
 
-echo "Subindo containers..."
-sudo docker compose down
+echo "Iniciando os containers com o novo comando Docker Compose..."
+# Executa a limpeza e inicialização usando a sintaxe oficial atualizada (sem hífen)
+sudo docker compose down --remove-orphans
 sudo docker compose up -d
 
 echo "========================================================"
-echo " INSTALADO COM SUCESSO!"
-echo " Acesse: http://localhost:8090/"
-echo " "
-echo " O que mudou:"
-echo " 1. O Nginx agora usa 'upstream' para balancear de verdade."
-echo " 2. A requisição vai sempre para a mesma URL (/api/status)."
-echo " 3. A tela mostra o contador de requisições de cada servidor."
-echo " "
-echo " TESTE DE QUEDA: rode 'sudo docker compose stop servidor2'"
-echo " Veja que o contador do Servidor 2 para, mas os outros continuam!"
+echo " Concluído! O ambiente foi consertado e iniciado."
+echo " Acesse no seu navegador: http://localhost:8090/"
 echo "========================================================"
