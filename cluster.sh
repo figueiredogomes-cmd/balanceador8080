@@ -1,210 +1,183 @@
 #!/bin/bash
 
-echo "======================================"
+set -e
+
+echo "=========================================="
 echo " ASP.NET CORE + NGINX LOAD BALANCER"
-echo " Porta 8090"
-echo "======================================"
+echo " PORTA 8090"
+echo "=========================================="
 
-mkdir -p balanceador8090/{nginx,api1,api2,api3}
-
+mkdir -p balanceador8090
 cd balanceador8090
 
-########################################
-# NGINX
-########################################
+mkdir -p nginx api
 
 cat > nginx/nginx.conf <<'EOF'
 events {}
 
 http {
 
-    upstream backend {
+```
+upstream backend {
 
-        server api1:8080 max_fails=3 fail_timeout=5s;
-        server api2:8080 max_fails=3 fail_timeout=5s;
-        server api3:8080 max_fails=3 fail_timeout=5s;
+    server app1:8080 max_fails=1 fail_timeout=5s;
+    server app2:8080 max_fails=1 fail_timeout=5s;
+    server app3:8080 max_fails=1 fail_timeout=5s;
 
-    }
+}
 
-    server {
+server {
 
-        listen 80;
+    listen 80;
 
-        location / {
+    location / {
 
-            proxy_pass http://backend;
+        proxy_pass http://backend;
 
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_http_version 1.1;
 
-        }
+        proxy_next_upstream error
+                            timeout
+                            invalid_header
+                            http_500
+                            http_502
+                            http_503
+                            http_504;
+
+        proxy_connect_timeout 2s;
+        proxy_read_timeout 5s;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 
     }
 
 }
+```
+
+}
 EOF
 
-########################################
-# API1
-########################################
-
-cat > api1/Program.cs <<'EOF'
+cat > api/Program.cs <<'EOF'
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
+
+var nomeServidor =
+Environment.GetEnvironmentVariable("SERVER_NAME")
+?? "DESCONHECIDO";
 
 int contador = 0;
 
 app.MapGet("/", () =>
 {
-    contador++;
+contador++;
 
-    return Results.Text($@"
+```
+return Results.Text($@"
+```
+
 ================================
-Servidor: API 1
+Servidor: {nomeServidor}
 Requisicoes: {contador}
-================================
+=======================
+
 ");
 });
 
-app.Run("http://0.0.0.0:8080");
-EOF
-
-########################################
-# API2
-########################################
-
-cat > api2/Program.cs <<'EOF'
-var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
-
-int contador = 0;
-
-app.MapGet("/", () =>
+app.MapGet("/health", () =>
 {
-    contador++;
-
-    return Results.Text($@"
-================================
-Servidor: API 2
-Requisicoes: {contador}
-================================
-");
+return Results.Ok("UP");
 });
 
 app.Run("http://0.0.0.0:8080");
 EOF
 
-########################################
-# API3
-########################################
+cat > api/App.csproj <<'EOF' <Project Sdk="Microsoft.NET.Sdk.Web">
 
-cat > api3/Program.cs <<'EOF'
-var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
 
-int contador = 0;
-
-app.MapGet("/", () =>
-{
-    contador++;
-
-    return Results.Text($@"
-================================
-Servidor: API 3
-Requisicoes: {contador}
-================================
-");
-});
-
-app.Run("http://0.0.0.0:8080");
+</Project>
 EOF
 
-########################################
-# DOCKERFILES
-########################################
-
-for api in api1 api2 api3
-do
-
-cat > $api/Dockerfile <<'EOF'
+cat > api/Dockerfile <<'EOF'
 FROM mcr.microsoft.com/dotnet/sdk:8.0
 
-WORKDIR /app
+WORKDIR /src
 
-COPY Program.cs .
+COPY . .
 
-RUN dotnet new web -n App
-
-WORKDIR /app/App
-
-COPY ../Program.cs Program.cs
-
-RUN dotnet publish -c Release -o out
+RUN dotnet publish -c Release -o /app
 
 EXPOSE 8080
 
-ENTRYPOINT ["dotnet","out/App.dll"]
+ENTRYPOINT ["dotnet","/app/App.dll"]
 EOF
-
-done
-
-########################################
-# DOCKER COMPOSE
-########################################
 
 cat > docker-compose.yml <<'EOF'
 services:
 
-  api1:
-    build: ./api1
-    container_name: api1
+app1:
+build: ./api
+container_name: app1
+environment:
+SERVER_NAME: APP1
 
-  api2:
-    build: ./api2
-    container_name: api2
+app2:
+build: ./api
+container_name: app2
+environment:
+SERVER_NAME: APP2
 
-  api3:
-    build: ./api3
-    container_name: api3
+app3:
+build: ./api
+container_name: app3
+environment:
+SERVER_NAME: APP3
 
-  nginx:
-    image: nginx:latest
-    container_name: nginx_lb
+nginx:
+image: nginx:latest
+container_name: nginx_lb
 
-    ports:
-      - "8090:80"
+```
+ports:
+  - "8090:80"
 
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+volumes:
+  - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
-    depends_on:
-      - api1
-      - api2
-      - api3
+depends_on:
+  - app1
+  - app2
+  - app3
+```
 
 EOF
-
-########################################
-# SUBIR CLUSTER
-########################################
 
 docker compose up -d --build
 
 echo
-echo "======================================"
-echo " Cluster iniciado"
-echo "======================================"
-echo
-echo "Acesse:"
+echo "=========================================="
+echo "CLUSTER INICIADO"
+echo "=========================================="
 echo
 echo "http://localhost:8090"
 echo
-echo "Teste:"
-echo
+echo "TESTE:"
 echo "curl http://localhost:8090"
 echo
-echo "A cada requisicao:"
+echo "PARAR APP1:"
+echo "docker stop app1"
 echo
-echo "API1 -> API2 -> API3 -> API1 ..."
+echo "PARAR APP2:"
+echo "docker stop app2"
 echo
+echo "VOLTAR APP1:"
+echo "docker start app1"
+echo
+echo "VOLTAR APP2:"
+echo "docker start app2"
