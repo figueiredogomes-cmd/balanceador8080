@@ -55,7 +55,7 @@ Código
      git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
      
     cd balanceador8090
-    sudo ./infra_lb.sh up
+    sudo  bash ./infra.sh up
      
  
 Passo 2- No seu navegador ou web browser cole http://localhost:8090/
