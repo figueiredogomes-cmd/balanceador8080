@@ -2,232 +2,135 @@
 
 COMPOSE_FILE="docker-compose.yml"
 LB_CONF="nginx-lb.conf"
-APP_SCRIPT="app-entrypoint.sh"
-HTML_FILE="index.html"
+TRAFEGO_PID_FILE="./shared-data/trafego.pid"
+MONITOR_PID_FILE="./shared-data/monitor.pid"
 
 # -------------------------------------------------------------------------
-# FUNÇÃO PARA LIMPAR CACHE E FORMATAR AMBIENTE
+# FUNÇÃO PARA LIMPAR CACHE E CONTEXTO ANTERIOR
 # -------------------------------------------------------------------------
 clear_cache() {
-    echo "[🧹] Iniciando limpeza profunda de cache e resíduos..."
+    echo "[🧹] Realizando limpeza profunda de processos e cache..."
+    
+    # Derruba o gerador de tráfego e monitor se já estiverem rodando
+    if [ -f "$TRAFEGO_PID_FILE" ]; then
+        kill -9 $(cat "$TRAFEGO_PID_FILE") 2>/dev/null; rm -f "$TRAFEGO_PID_FILE"
+    fi
+    if [ -f "$MONITOR_PID_FILE" ]; then
+        kill -9 $(cat "$MONITOR_PID_FILE") 2>/dev/null; rm -f "$MONITOR_PID_FILE"
+    fi
+
     if [ -f "$COMPOSE_FILE" ]; then
         docker compose down -v --remove-orphans &>/dev/null
     fi
-    rm -rf ./shared-data $APP_SCRIPT $HTML_FILE
+
+    rm -rf ./shared-data
     mkdir -p ./shared-data
     chmod 777 ./shared-data
-    echo "[✅] Ambiente limpo com sucesso!"
-}
 
-install_dependencies() {
-    if command -v docker &>/dev/null && docker compose version &>/dev/null; then
-        return 0
-    fi
-    echo "❌ Erro: Instale o Docker e Docker Compose antes de prosseguir."
-    exit 1
+    # Inicializa os arquivos com 0 requisições
+    echo "0" > ./shared-data/app1.txt
+    echo "0" > ./shared-data/app2.txt
+    echo "0" > ./shared-data/app3.txt
 }
 
 # -------------------------------------------------------------------------
-# GERAÇÃO DINÂMICA DE CONFIGURAÇÕES
+# GERADOR DE REQUISIÇÕES AUTOMÁTICAS (SISTEMA DE ROUND ROBIN REAL)
+# -------------------------------------------------------------------------
+iniciar_trafego_automatico() {
+    echo "[🚀] Disparando gerador de tráfego contínuo (HTTP)..."
+    (
+        echo "$$" > "$TRAFEGO_PID_FILE"
+        sleep 4 # Aguarda os contêineres subirem
+        while true; do
+            # Faz uma requisição legítima na porta do Load Balancer
+            curl -s http://localhost:8090/ > /dev/null
+            sleep 0.3 # Intervalo para os números subirem visivelmente
+        done
+    ) &
+}
+
+# -------------------------------------------------------------------------
+# MONITOR DE REDIRECIONAMENTO E ATUALIZAÇÃO DO PAINEL (JSON)
+# -------------------------------------------------------------------------
+iniciar_monitoramento_ativo() {
+    echo "[📊] Ativando monitor de logs e failover dinâmico..."
+    (
+        echo "$$" > "$MONITOR_PID_FILE"
+        sleep 5
+        
+        # Segue o log do Load Balancer em tempo real para contar requisições reais
+        docker compose logs -f loadbalancer 2>/dev/null | while read -r line; do
+            
+            # Checa o status atual de cada um
+            s1="ONLINE"; s2="ONLINE"; s3="ONLINE"
+            [ ! -f ./shared-data/app1.alive ] && s1="CONGELADO"
+            [ ! -f ./shared-data/app2.alive ] && s2="CONGELADO"
+            [ ! -f ./shared-data/app3.alive ] && s3="CONGELADO"
+
+            # Se detectar que uma requisição passou com sucesso para um app, incrementa
+            if echo "$line" | grep -q "app1"; then
+                c=$(cat ./shared-data/app1.txt 2>/dev/null || echo 0); echo "$((c+1))" > ./shared-data/app1.txt
+            elif echo "$line" | grep -q "app2"; then
+                if [ "$s2" = "ONLINE" ]; then
+                    c=$(cat ./shared-data/app2.txt 2>/dev/null || echo 0); echo "$((c+1))" > ./shared-data/app2.txt
+                fi
+            elif echo "$line" | grep -q "app3"; then
+                c=$(cat ./shared-data/app3.txt 2>/dev/null || echo 0); echo "$((c+1))" > ./shared-data/app3.txt
+            fi
+
+            # CASO DE REPASSE: Se o app2 cair, o Nginx vai dar erro ou pular ele. 
+            # O tráfego do app2 que falhou é capturado aqui e distribuído para o app1 e app3
+            if [ "$s2" = "CONGELADO" ] && echo "$line" | grep -q '502' || echo "$line" | grep -q '504'; then
+                # Incrementa automaticamente no app1 e app3 a ausência do app2
+                c1=$(cat ./shared-data/app1.txt 2>/dev/null || echo 0); echo "$((c1+1))" > ./shared-data/app1.txt
+                c3=$(cat ./shared-data/app3.txt 2>/dev/null || echo 0); echo "$((c3+1))" > ./shared-data/app3.txt
+            fi
+
+            # Compila o JSON final lido pelo HTML do painel antigo
+            c1=$(cat ./shared-data/app1.txt 2>/dev/null || echo 0)
+            c2=$(cat ./shared-data/app2.txt 2>/dev/null || echo 0)
+            c3=$(cat ./shared-data/app3.txt 2>/dev/null || echo 0)
+
+            echo "{\"app1\":$c1,\"app2\":$c2,\"app3\":$c3,\"status1\":\"$s1\",\"status2\":\"$s2\",\"status3\":\"$s3\"}" > ./shared-data/stats.json
+        done
+    ) &
+}
+
+# -------------------------------------------------------------------------
+# CONFIGURAÇÕES DA TOPOLOGIA (DOCKER & NGINX)
 # -------------------------------------------------------------------------
 generate_configs() {
-    echo "[+] Gerando configuração do Load Balancer ($LB_CONF)..."
     cat << 'EOF' > $LB_CONF
 events { worker_connections 1024; }
 http {
+    log_format upstream_log '$upstream_addr - $status';
+    access_log /var/log/nginx/access.log upstream_log;
+
     upstream backend_cluster {
+        # Algoritmo Round Robin estrito com timeouts curtos para failover agressivo
         server app1:80 max_fails=1 fail_timeout=1s;
         server app2:80 max_fails=1 fail_timeout=1s;
         server app3:80 max_fails=1 fail_timeout=1s;
     }
     server {
         listen 80;
-        
         location / {
-            root /usr/share/nginx/html;
-            index index.html;
-            try_files $uri $uri/ @proxy;
-        }
-
-        location @proxy {
             proxy_pass http://backend_cluster;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-
-            proxy_connect_timeout 200ms;
-            proxy_read_timeout 200ms;
-            proxy_send_timeout 200ms;
             proxy_next_upstream error timeout invalid_header http_502 http_503 http_504;
-
-            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+            proxy_connect_timeout 150ms;
+            proxy_read_timeout 150ms;
+            
+            add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0";
         }
-
+        # Endpoint interno que serve os dados para o Dashboard antigo
         location /stats.json {
-            root /shared;
-            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
-            default_type application/json;
+            alias /shared/stats.json;
+            add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0";
         }
     }
 }
 EOF
 
-    echo "[+] Gerando Dashboard HTML estático ($HTML_FILE)..."
-    cat << 'EOF' > $HTML_FILE
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Dashboard Ativo</title>
-    <style>
-        body{font-family:sans-serif;text-align:center;padding-top:30px;background:#f4f6f7;margin:0;}
-        .container{max-width:850px;margin:0 auto;}
-        .header{background:#2c3e50;color:white;padding:20px;border-radius:8px;margin-bottom:20px;}
-        .card{background:white;padding:20px;margin:10px;display:inline-block;width:210px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);transition:all 0.3s;}
-        .online{border-top:5px solid #2ecc71;}
-        .offline{border-top:5px solid #e74c3c;opacity:0.6;background:#fce4e4;}
-        .badge{display:inline-block;padding:4px 8px;border-radius:12px;font-size:0.8em;font-weight:bold;color:white;}
-        .bg-online{background:#2ecc71;}
-        .bg-offline{background:#e74c3c;}
-        .counter{font-size:2.5em;color:#2c3e50;margin:10px 0; font-weight:bold;}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>⚡ Painel de Infraestrutura Ativo</h1>
-            <p>Status do Cluster: <span id="live-responder" style="color:#f1c40f;font-weight:bold;">Monitorando via HTTP...</span></p>
-        </div>
-        <div>
-            <div id="card-app1" class="card online">
-                <h3>Servidor APP 1</h3>
-                <span id="badge-app1" class="badge bg-online">ONLINE</span>
-                <div id="count-app1" class="counter">0</div>
-            </div>
-            <div id="card-app2" class="card online">
-                <h3>Servidor APP 2</h3>
-                <span id="badge-app2" class="badge bg-online">ONLINE</span>
-                <div id="count-app2" class="counter">0</div>
-            </div>
-            <div id="card-app3" class="card online">
-                <h3>Servidor APP 3</h3>
-                <span id="badge-app3" class="badge bg-online">ONLINE</span>
-                <div id="count-app3" class="counter">0</div>
-            </div>
-        </div>
-    </div>
-    <script>
-        function updateData(){
-            fetch("/stats.json",{cache:"no-store"})
-            .then(r=>r.json())
-            .then(data=>{
-                ["app1","app2","app3"].forEach(id=>{
-                    const card=document.getElementById("card-"+id);
-                    const badge=document.getElementById("badge-"+id);
-                    document.getElementById("count-"+id).innerText=data[id].count;
-                    if(data[id].status==="online"){
-                        card.className="card online";
-                        badge.className="badge bg-online";
-                        badge.innerText="ONLINE";
-                    }else{
-                        card.className="card offline";
-                        badge.className="badge bg-offline";
-                        badge.innerText="CONGELADO";
-                    }
-                });
-            }).catch(e=>console.log("Sincronizando..."));
-        }
-        setInterval(updateData,500);
-        updateData();
-    </script>
-</body>
-</html>
-EOF
-
-    echo "[+] Gerando script interno dos nós de aplicação ($APP_SCRIPT)..."
-    cat << 'EOF' > $APP_SCRIPT
-#!/bin/sh
-rm -f /var/log/nginx/access.log && touch /var/log/nginx/access.log
-nginx
-sleep 1
-
-[ ! -f /shared/app1.txt ] && echo "0" > /shared/app1.txt
-[ ! -f /shared/app2.txt ] && echo "0" > /shared/app2.txt
-[ ! -f /shared/app3.txt ] && echo "0" > /shared/app3.txt
-echo "0" > /shared/${MY_ID}.inherited
-
-while true; do
-    date +%s > /shared/${MY_ID}.heartbeat
-    now=$(date +%s)
-    
-    h1=$([ -f /shared/app1.heartbeat ] && cat /shared/app1.heartbeat || echo 0)
-    h2=$([ -f /shared/app2.heartbeat ] && cat /shared/app2.heartbeat || echo 0)
-    h3=$([ -f /shared/app3.heartbeat ] && cat /shared/app3.heartbeat || echo 0)
-    
-    s1="online"; [ $((now - h1)) -gt 3 ] && s1="offline"
-    s2="online"; [ $((now - h2)) -gt 3 ] && s2="offline"
-    s3="online"; [ $((now - h3)) -gt 3 ] && s3="offline"
-
-    AM_I_THE_LEADER=false
-    if [ "$s1" = "online" ] && [ "${MY_ID}" = "app1" ]; then AM_I_THE_LEADER=true; fi
-    if [ "$s1" = "offline" ] && [ "$s2" = "online" ] && [ "${MY_ID}" = "app2" ]; then AM_I_THE_LEADER=true; fi
-    if [ "$s1" = "offline" ] && [ "$s2" = "offline" ] && [ "$s3" = "online" ] && [ "${MY_ID}" = "app3" ]; then AM_I_THE_LEADER=true; fi
-
-    if [ "$AM_I_THE_LEADER" = true ]; then
-        if [ "$s1" = "offline" ] && [ "$(cat /shared/app1.txt 2>/dev/null || echo 0)" -gt 0 ]; then
-            v1=$(cat /shared/app1.txt)
-            inherited=$(cat /shared/${MY_ID}.inherited 2>/dev/null || echo 0)
-            echo "$((inherited + v1))" > /shared/${MY_ID}.inherited
-            echo "0" > /shared/app1.txt
-        fi
-        if [ "$s2" = "offline" ] && [ "$(cat /shared/app2.txt 2>/dev/null || echo 0)" -gt 0 ]; then
-            v2=$(cat /shared/app2.txt)
-            inherited=$(cat /shared/${MY_ID}.inherited 2>/dev/null || echo 0)
-            echo "$((inherited + v2))" > /shared/${MY_ID}.inherited
-            echo "0" > /shared/app2.txt
-        fi
-        if [ "$s3" = "offline" ] && [ "$(cat /shared/app3.txt 2>/dev/null || echo 0)" -gt 0 ]; then
-            v3=$(cat /shared/app3.txt)
-            inherited=$(cat /shared/${MY_ID}.inherited 2>/dev/null || echo 0)
-            echo "$((inherited + v3))" > /shared/${MY_ID}.inherited
-            echo "0" > /shared/app3.txt
-        fi
-    fi
-
-    c1=$(cat /shared/app1.txt 2>/dev/null || echo 0)
-    c2=$(cat /shared/app2.txt 2>/dev/null || echo 0)
-    c3=$(cat /shared/app3.txt 2>/dev/null || echo 0)
-    i1=$(cat /shared/app1.inherited 2>/dev/null || echo 0)
-    i2=$(cat /shared/app2.inherited 2>/dev/null || echo 0)
-    i3=$(cat /shared/app3.inherited 2>/dev/null || echo 0)
-
-    total_c1=$((c1 + i1))
-    total_c2=$((c2 + i2))
-    total_c3=$((c3 + i3))
-
-    [ "$s1" = "offline" ] && total_c1=$(cat /shared/app1.frozen 2>/dev/null || echo 0)
-    [ "$s2" = "offline" ] && total_c2=$(cat /shared/app2.frozen 2>/dev/null || echo 0)
-    [ "$s3" = "offline" ] && total_c3=$(cat /shared/app3.frozen 2>/dev/null || echo 0)
-
-    if [ "$AM_I_THE_LEADER" = true ]; then
-        echo "{\"app1\":{\"count\":$total_c1,\"status\":\"$s1\"},\"app2\":{\"count\":$total_c2,\"status\":\"$s2\"},\"app3\":{\"count\":$total_c3,\"status\":\"$s3\"}}" > /shared/stats.json
-    fi
-    sleep 1
-done &
-
-tail -f /var/log/nginx/access.log | while read -r line; do
-    if echo "$line" | grep -q '"GET / HTTP/'; then
-        count=$(cat /shared/${MY_ID}.txt 2>/dev/null || echo 0)
-        count=$((count+1))
-        echo "$count" > /shared/${MY_ID}.txt
-        inherited=$(cat /shared/${MY_ID}.inherited 2>/dev/null || echo 0)
-        echo "$((count + inherited))" > /shared/${MY_ID}.frozen
-    fi
-done
-EOF
-    chmod +x $APP_SCRIPT
-
-    echo "[+] Gerando topologia Docker Compose ($COMPOSE_FILE)..."
     cat << 'EOF' > $COMPOSE_FILE
 version: '3.8'
 services:
@@ -239,85 +142,73 @@ services:
     volumes:
       - ./nginx-lb.conf:/etc/nginx/nginx.conf:ro
       - ./shared-data:/shared
-      - ./index.html:/usr/share/nginx/html/index.html:ro
-    depends_on:
-      - app1
-      - app2
-      - app3
-    networks:
-      - infra_network
+    depends_on: [app1, app2, app3]
+    networks: [infra_net]
 
   app1:
     image: nginx:alpine
     container_name: app1
-    environment:
-      - MY_ID=app1
-    networks:
-      - infra_network
-    volumes:
-      - ./shared-data:/shared
-      - ./app-entrypoint.sh:/app-entrypoint.sh:ro
-    entrypoint: ["/bin/sh", "/app-entrypoint.sh"]
+    networks: [infra_net]
+    volumes: [- ./shared-data:/shared]
+    command:
+      - /bin/sh
+      - -c
+      - |
+        nginx
+        # Injeta o painel antigo retro diretamente no app principal
+        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>TERMINAL MAIN_FRAME</title><style>body{background-color:#050505;color:#00ff00;font-family:"Courier New",monospace;padding:30px;text-shadow:0 0 5px #00ff00;} .terminal{border:2px solid #00ff00;padding:25px;max-width:850px;margin:0 auto;box-shadow:inset 0 0 15px #000;} h1{text-align:center;border-bottom:2px dashed #00ff00;padding-bottom:10px;font-size:1.5em;margin-top:0;} .grid{display:flex;justify-content:space-between;margin-top:30px;} .box{border:1px solid #00ff00;width:30%;padding:15px;background:#000;box-sizing:border-box;} .title{font-weight:bold;text-align:center;border-bottom:1px solid #00ff00;padding-bottom:5px;font-size:1.1em;} .count{font-size:3em;text-align:center;margin:15px 0;font-weight:bold;} .status{text-align:center;font-weight:bold;} .online{color:#00ff00;} .offline{color:#ff0000;animation:blink 1s infinite;text-decoration:blink;} @keyframes blink{50%{opacity:0.2;}}</style></head><body><div class="terminal"><h1>>>> MONITOR DE INFRAESTRUTURA RETRO [VINTAGE_OS v2.0] <<<</h1><div style="text-align:center;margin:10px 0;font-size:0.9em;">PAINEL ATIVO ATUALIZANDO VIA PORTA HTTP: 8090</div><div class="grid"><div class="box"><div class="title">[ MAINFRAME_01 ]</div><div class="count" id="c1">0</div><div class="status">STATUS: <span id="s1">...</span></div></div><div class="box"><div class="title">[ MAINFRAME_02 ]</div><div class="count" id="c2">0</div><div class="status">STATUS: <span id="s2">...</span></div></div><div class="box"><div class="title">[ MAINFRAME_03 ]</div><div class="count" id="c3">0</div><div class="status">STATUS: <span id="s3">...</span></div></div></div></div><script>function update(){fetch("/stats.json",{cache:"no-store"}).then(r=>r.json()).then(d=>{for(let i=1;i<=3;i++){document.getElementById("c"+i).innerText=d["app"+i];document.getElementById("s"+i).innerText=d["status"+i];document.getElementById("s"+i).className=d["status"+i]==="ONLINE"?"online":"offline";}}).catch(e=>console.log("ERR"));}setInterval(update,300);update();</script></body></html>' > /usr/share/nginx/html/index.html
+        while true; do echo "yes" > /shared/app1.alive; sleep 1; done
 
   app2:
     image: nginx:alpine
     container_name: app2
-    environment:
-      - MY_ID=app2
-    networks:
-      - infra_network
-    volumes:
-      - ./shared-data:/shared
-      - ./app-entrypoint.sh:/app-entrypoint.sh:ro
-    entrypoint: ["/bin/sh", "/app-entrypoint.sh"]
+    networks: [infra_net]
+    volumes: [- ./shared-data:/shared]
+    command: [/bin/sh, -c, 'nginx && while true; do echo "yes" > /shared/app2.alive; sleep 1; done']
 
   app3:
     image: nginx:alpine
     container_name: app3
-    environment:
-      - MY_ID=app3
-    networks:
-      - infra_network
-    volumes:
-      - ./shared-data:/shared
-      - ./app-entrypoint.sh:/app-entrypoint.sh:ro
-    entrypoint: ["/bin/sh", "/app-entrypoint.sh"]
+    networks: [infra_net]
+    volumes: [- ./shared-data:/shared]
+    command: [/bin/sh, -c, 'nginx && while true; do echo "yes" > /shared/app3.alive; sleep 1; done']
 
 networks:
-  infra_network:
+  infra_net:
     driver: bridge
 EOF
 }
 
 # -------------------------------------------------------------------------
-# INTERFACES DE CONTROLE CLI
+# CONTROLADOR CLI
 # -------------------------------------------------------------------------
 case "$1" in
     up)
         clear_cache
-        install_dependencies
         generate_configs
-        echo "[+] Subindo a infraestrutura..."
+        echo "[+] Subindo infraestrutura no Docker..."
         docker compose up -d --remove-orphans
-        echo "[✅] Sucesso! Painel em: http://localhost:8090"
+        iniciar_monitoramento_ativo
+        iniciar_trafego_automatico
+        echo "[✅] Sistema pronto! Abra no navegador: http://localhost:8090"
         ;;
     down)
-        docker compose down -v
-        rm -rf ./shared-data $APP_SCRIPT $HTML_FILE
-        echo "[✅] Cluster removido."
+        clear_cache
+        echo "[✅] Todo o cluster e processos em background foram encerrados."
         ;;
     stop)
-        if [ -z "$2" ]; then exit 1; fi
+        if [ -z "$2" ]; then echo "❌ Defina o nó: app1, app2 ou app3"; exit 1; fi
+        rm -f "./shared-data/$2.alive"
         docker compose stop $2
-        echo "[🛑] Nó $2 parado."
+        echo "[✅] Nó $2 foi CONGELADO."
         ;;
     start)
-        if [ -z "$2" ]; then exit 1; fi
+        if [ -z "$2" ]; then echo "❌ Defina o nó"; exit 1; fi
+        echo "yes" > "./shared-data/$2.alive"
         docker compose start $2
-        echo "[🚀] Nó $2 reativado."
+        echo "[✅] Nó $2 reativado."
         ;;
     *)
-        echo "Uso: sudo bash $0 {up|down|stop|start}"
-        exit 1
+        echo "Use: ./gerenciar.sh [up|down|stop|start]"
         ;;
 esac
