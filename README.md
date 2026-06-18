@@ -58,7 +58,7 @@ Código
     sudo ./infra_lb.sh up
      
  
-Passo 2- No seu navegador ou web browser cole http://localhost:8080/
+Passo 2- No seu navegador ou web browser cole http://localhost:8090/
 
 Passo 3- 
 Cenário de Teste: Recuperação de Serviços (Self-Healing)
