@@ -4,7 +4,7 @@ COMPOSE_FILE="docker-compose.yml"
 LB_CONF="nginx-lb.conf"
 
 # -------------------------------------------------------------------------
-# INSTAÇÃO AUTOMÁTICA DE DEPENDÊNCIAS (APENAS DOCKER COMPOSE PLUGIN)
+# INSTALAÇÃO AUTOMÁTICA DE DEPENDÊNCIAS (APENAS DOCKER COMPOSE PLUGIN)
 # -------------------------------------------------------------------------
 install_dependencies() {
     if command -v docker &>/dev/null && docker compose version &>/dev/null; then
@@ -45,7 +45,7 @@ install_dependencies() {
 }
 
 # -------------------------------------------------------------------------
-# GERAÇÃO DINÂMICA DE CONFIGURAÇÕES (SEM ESPAÇOS INVÁLIDOS)
+# GERAÇÃO DINÂMICA DE CONFIGURAÇÕES (FAILOVER COMPLETO E CORREÇÃO DE LOGS)
 # -------------------------------------------------------------------------
 generate_configs() {
     echo "[+] Gerando configuração do Load Balancer ($LB_CONF)..."
@@ -71,7 +71,7 @@ http {
             proxy_send_timeout 500ms;
             proxy_next_upstream error timeout invalid_header http_502 http_503 http_504;
 
-            # DESTRUIÇÃO DE CACHE
+            # DESTRUIÇÃO DE CACHE INTERNA
             add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
             add_header Pragma "no-cache";
             add_header Expires "0";
@@ -109,7 +109,8 @@ services:
       - /bin/sh
       - -c
       - |
-        mkdir -p /var/log/nginx && touch /var/log/nginx/access.log
+        rm -f /var/log/nginx/access.log
+        touch /var/log/nginx/access.log
         nginx
         sleep 1
         [ ! -f /shared/app1.txt ] && echo "0" > /shared/app1.txt
@@ -145,7 +146,8 @@ services:
       - /bin/sh
       - -c
       - |
-        mkdir -p /var/log/nginx && touch /var/log/nginx/access.log
+        rm -f /var/log/nginx/access.log
+        touch /var/log/nginx/access.log
         nginx
         sleep 1
         [ ! -f /shared/app1.txt ] && echo "0" > /shared/app1.txt
@@ -181,7 +183,8 @@ services:
       - /bin/sh
       - -c
       - |
-        mkdir -p /var/log/nginx && touch /var/log/nginx/access.log
+        rm -f /var/log/nginx/access.log
+        touch /var/log/nginx/access.log
         nginx
         sleep 1
         [ ! -f /shared/app1.txt ] && echo "0" > /shared/app1.txt
