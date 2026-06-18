@@ -70,16 +70,16 @@ http {
 }
 EOF
 
-    # HTML do Dashboard Interativo
-    DASHBOARD_HTML='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Dashboard Cluster</title><style>body{font-family:sans-serif;text-align:center;padding-top:30px;background:#f4f6f7;margin:0;} .container{max-width:850px;margin:0 auto;} .header{background:#2c3e50;color:white;padding:20px;border-radius:8px;margin-bottom:20px;} .card{background:white;padding:20px;margin:10px;display:inline-block;width:210px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);transition:all 0.3s;} .online{border-top:5px solid #2ecc71;} .offline{border-top:5px solid #e74c3c;opacity:0.6;background:#fce4e4;} .badge{display:inline-block;padding:4px 8px;border-radius:12px;font-size:0.8em;font-weight:bold;color:white;} .bg-online{background:#2ecc71;} .bg-offline{background:#e74c3c;} .counter{font-size:2.5em;color:#2c3e50;margin:10px 0; font-weight:bold;}</style></head><body><div class="container"><div class="header"><h1>⚡ Painel de Infraestrutura Ativo</h1><p>Status do Cluster: <span id="live-responder" style="color:#f1c40f;font-weight:bold;">Sincronizando...</span></p></div><div><div id="card-app1" class="card"><h3>Servidor APP 1</h3><span id="badge-app1" class="badge">...</span><div id="count-app1" class="counter">0</div></div><div id="card-app2" class="card"><h3>Servidor APP 2</h3><span id="badge-app2" class="badge">...</span><div id="count-app2" class="counter">0</div></div><div id="card-app3" class="card"><h3>Servidor APP 3</h3><span id="badge-app3" class="badge">...</span><div id="count-app3" class="counter">0</div></div></div></div><script>function updateData(){fetch("/stats.json",{cache:"no-store"}).then(r=>r.json()).then(data=>{document.getElementById("live-responder").innerText="Monitorando Ativo";["app1","app2","app3"].forEach(id=>{const card=document.getElementById("card-"+id);const badge=document.getElementById("badge-"+id);document.getElementById("count-"+id).innerText=data[id].count;if(data[id].status==="online"){card.className="card online";badge.className="badge bg-online";badge.innerText="ONLINE";}else{card.className="card offline";badge.className="badge bg-offline";badge.innerText="CONGELADO";}});}).catch(e=>console.log("Aguardando JSON..."));}setInterval(updateData,500);updateData();</script></body></html>'
-
-    # SCRIPT DE CONTAGEM INDIVIDUAL E SOMA DE REQUISIÇÕES DOS CAÍDOS
+    # Script Inteligente Replicado: Roda em TODOS os apps de forma descentralizada
     INTERNAL_APP_SCRIPT='
     rm -f /var/log/nginx/access.log && touch /var/log/nginx/access.log
     nginx
     sleep 1
 
-    echo "0" > /shared/${MY_ID}.txt
+    [ ! -f /shared/app1.txt ] && echo "0" > /shared/app1.txt
+    [ ! -f /shared/app2.txt ] && echo "0" > /shared/app2.txt
+    [ ! -f /shared/app3.txt ] && echo "0" > /shared/app3.txt
+    
     echo "0" > /shared/${MY_ID}.inherited
 
     while true; do
@@ -94,47 +94,44 @@ EOF
         s2="online"; [ $((now - h2)) -gt 3 ] && s2="offline"
         s3="online"; [ $((now - h3)) -gt 3 ] && s3="offline"
 
-        # LÓGICA DO FAILOVER: Se o APP atual está vivo, ele verifica se precisa herdar dados
-        if [ "$s1" = "offline" ] && [ "${MY_ID}" != "app1" ]; then
-            # Se app1 caiu, o primeiro nó disponível (app2 ou app3) assume as requisições dele
-            if [ "${MY_ID}" = "app2" ] || { [ "${MY_ID}" = "app3" ] && [ "$s2" = "offline" ]; }; then
-                v1=$(cat /shared/app1.txt 2>/dev/null || echo 0)
-                if [ "$v1" -gt 0 ]; then
-                    inherited=$(cat /shared/${MY_ID}.inherited 2>/dev/null || echo 0)
-                    echo "$((inherited + v1))" > /shared/${MY_ID}.inherited
-                    echo "0" > /shared/app1.txt
-                fi
+        # ELEIÇÃO DO ASSUMIDOR: 
+        # O app1 assume se estiver vivo. Se o app1 morrer, o app2 assume. Se o 1 e 2 morrerem, o app3 assume tudo.
+        AM_I_THE_LEADER=false
+        if [ "$s1" = "online" ] && [ "${MY_ID}" = "app1" ]; then AM_I_THE_LEADER=true; fi
+        if [ "$s1" = "offline" ] && [ "$s2" = "online" ] && [ "${MY_ID}" = "app2" ]; then AM_I_THE_LEADER=true; fi
+        if [ "$s1" = "offline" ] && [ "$s2" = "offline" ] && [ "$s3" = "online" ] && [ "${MY_ID}" = "app3" ]; then AM_I_THE_LEADER=true; fi
+
+        if [ "$AM_I_THE_LEADER" = true ]; then
+            # Se APP1 caiu, o líder atual herda os números dele
+            if [ "$s1" = "offline" ] && [ "$(cat /shared/app1.txt 2>/dev/null || echo 0)" -gt 0 ]; then
+                v1=$(cat /shared/app1.txt)
+                inherited=$(cat /shared/${MY_ID}.inherited 2>/dev/null || echo 0)
+                echo "$((inherited + v1))" > /shared/${MY_ID}.inherited
+                echo "0" > /shared/app1.txt
+            fi
+
+            # Se APP2 caiu, o líder atual herda os números dele
+            if [ "$s2" = "offline" ] && [ "$(cat /shared/app2.txt 2>/dev/null || echo 0)" -gt 0 ]; then
+                v2=$(cat /shared/app2.txt)
+                inherited=$(cat /shared/${MY_ID}.inherited 2>/dev/null || echo 0)
+                echo "$((inherited + v2))" > /shared/${MY_ID}.inherited
+                echo "0" > /shared/app2.txt
+            fi
+
+            # Se APP3 caiu, o líder atual herda os números dele
+            if [ "$s3" = "offline" ] && [ "$(cat /shared/app3.txt 2>/dev/null || echo 0)" -gt 0 ]; then
+                v3=$(cat /shared/app3.txt)
+                inherited=$(cat /shared/${MY_ID}.inherited 2>/dev/null || echo 0)
+                echo "$((inherited + v3))" > /shared/${MY_ID}.inherited
+                echo "0" > /shared/app3.txt
             fi
         fi
 
-        if [ "$s2" = "offline" ] && [ "${MY_ID}" != "app2" ]; then
-            if [ "${MY_ID}" = "app1" ] || { [ "${MY_ID}" = "app3" ] && [ "$s1" = "offline" ]; }; then
-                v2=$(cat /shared/app2.txt 2>/dev/null || echo 0)
-                if [ "$v2" -gt 0 ]; then
-                    inherited=$(cat /shared/${MY_ID}.inherited 2>/dev/null || echo 0)
-                    echo "$((inherited + v2))" > /shared/${MY_ID}.inherited
-                    echo "0" > /shared/app2.txt
-                fi
-            fi
-        fi
-
-        if [ "$s3" = "offline" ] && [ "${MY_ID}" != "app3" ]; then
-            if [ "${MY_ID}" = "app1" ] || { [ "${MY_ID}" = "app2" ] && [ "$s1" = "offline" ]; }; then
-                v3=$(cat /shared/app3.txt 2>/dev/null || echo 0)
-                if [ "$v3" -gt 0 ]; then
-                    inherited=$(cat /shared/${MY_ID}.inherited 2>/dev/null || echo 0)
-                    echo "$((inherited + v3))" > /shared/${MY_ID}.inherited
-                    echo "0" > /shared/app3.txt
-                fi
-            fi
-        fi
-
-        # Montagem do JSON final lido pelo navegador
+        # Preparação das variáveis de exibição
         c1=$(cat /shared/app1.txt 2>/dev/null || echo 0)
         c2=$(cat /shared/app2.txt 2>/dev/null || echo 0)
         c3=$(cat /shared/app3.txt 2>/dev/null || echo 0)
 
-        # Adiciona os herdados se o nó principal estiver online
         i1=$(cat /shared/app1.inherited 2>/dev/null || echo 0)
         i2=$(cat /shared/app2.inherited 2>/dev/null || echo 0)
         i3=$(cat /shared/app3.inherited 2>/dev/null || echo 0)
@@ -143,23 +140,24 @@ EOF
         total_c2=$((c2 + i2))
         total_c3=$((c3 + i3))
 
-        # Se congelado, exibe o último valor antes de sumir
+        # Mantém congelado visualmente o último valor do nó que caiu
         [ "$s1" = "offline" ] && total_c1=$(cat /shared/app1.frozen 2>/dev/null || echo 0)
         [ "$s2" = "offline" ] && total_c2=$(cat /shared/app2.frozen 2>/dev/null || echo 0)
         [ "$s3" = "offline" ] && total_c3=$(cat /shared/app3.frozen 2>/dev/null || echo 0)
 
-        echo "{\"app1\":{\"count\":$total_c1,\"status\":\"$s1\"},\"app2\":{\"count\":$total_c2,\"status\":\"$s2\"},\"app3\":{\"count\":$total_c3,\"status\":\"$s3\"}}" > /shared/stats.json
+        # Apenas o líder escreve o estado global para evitar concorrência de escrita
+        if [ "$AM_I_THE_LEADER" = true ]; then
+            echo "{\"app1\":{\"count\":$total_c1,\"status\":\"$s1\"},\"app2\":{\"count\":$total_c2,\"status\":\"$s2\"},\"app3\":{\"count\":$total_c3,\"status\":\"$s3\"}}" > /shared/stats.json
+        fi
         sleep 1
     done &
 
-    # Capturador de requisições em tempo real (1 em 1)
     tail -f /var/log/nginx/access.log | while read -r line; do
         if echo "$line" | grep -q '"GET / HTTP/'; then
             count=$(cat /shared/${MY_ID}.txt 2>/dev/null || echo 0)
             count=$((count+1))
             echo "$count" > /shared/${MY_ID}.txt
             
-            # Atualiza o congelado para segurança caso caia logo em seguida
             inherited=$(cat /shared/${MY_ID}.inherited 2>/dev/null || echo 0)
             echo "$((count + inherited))" > /shared/${MY_ID}.frozen
         fi
@@ -167,7 +165,7 @@ EOF
     '
 
     echo "[+] Gerando topologia Docker Compose ($COMPOSE_FILE)..."
-    cat << EOF > $COMPOSE_FILE
+    cat << 'EOF' > $COMPOSE_FILE
 version: '3.8'
 services:
   loadbalancer:
@@ -183,7 +181,7 @@ services:
       - -c
       - |
         mkdir -p /usr/share/nginx/html
-        echo '$DASHBOARD_HTML' > /usr/share/nginx/html/index.html
+        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Dashboard Cluster</title><style>body{font-family:sans-serif;text-align:center;padding-top:30px;background:#f4f6f7;margin:0;} .container{max-width:850px;margin:0 auto;} .header{background:#2c3e50;color:white;padding:20px;border-radius:8px;margin-bottom:20px;} .card{background:white;padding:20px;margin:10px;display:inline-block;width:210px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);transition:all 0.3s;} .online{border-top:5px solid #2ecc71;} .offline{border-top:5px solid #e74c3c;opacity:0.6;background:#fce4e4;} .badge{display:inline-block;padding:4px 8px;border-radius:12px;font-size:0.8em;font-weight:bold;color:white;} .bg-online{background:#2ecc71;} .bg-offline{background:#e74c3c;} .counter{font-size:2.5em;color:#2c3e50;margin:10px 0; font-weight:bold;}</style></head><body><div class="container"><div class="header"><h1>⚡ Painel de Infraestrutura Ativo</h1><p>Status do Cluster: <span id="live-responder" style="color:#f1c40f;font-weight:bold;">Monitorando via HTTP...</span></p></div><div><div id="card-app1" class="card"><h3>Servidor APP 1</h3><span id="badge-app1" class="badge bg-online">ONLINE</span><div id="count-app1" class="counter">0</div></div><div id="card-app2" class="card"><h3>Servidor APP 2</h3><span id="badge-app2" class="badge bg-online">ONLINE</span><div id="count-app2" class="counter">0</div></div><div id="card-app3" class="card"><h3>Servidor APP 3</h3><span id="badge-app3" class="badge bg-online">ONLINE</span><div id="count-app3" class="counter">0</div></div></div></div><script>function updateData(){fetch("/stats.json",{cache:"no-store"}).then(r=>r.json()).then(data=>{["app1","app2","app3"].forEach(id=>{const card=document.getElementById("card-"+id);const badge=document.getElementById("badge-"+id);document.getElementById("count-"+id).innerText=data[id].count;if(data[id].status==="online"){card.className="card online";badge.className="badge bg-online";badge.innerText="ONLINE";}else{card.className="card offline";badge.className="badge bg-offline";badge.innerText="CONGELADO";}});}).catch(e=>console.log("Sincronizando..."));}setInterval(updateData,500);updateData();</script></body></html>' > /usr/share/nginx/html/index.html
         nginx -g 'daemon off;'
     depends_on:
       - app1
