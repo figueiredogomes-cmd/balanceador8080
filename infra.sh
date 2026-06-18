@@ -1,26 +1,19 @@
-Alteração feita! Removi o pacote `docker.io` da rotina de instalação e mantive apenas o `docker-compose-v2`.
-
-> ⚠️ **Nota rápida:** Certifique-se de que o motor do Docker (Docker Engine) já esteja previamente instalado no seu Ubuntu, pois o plugin do Compose depende dele para rodar os contêineres.
-
-Aqui está o script completo e atualizado pronto para copiar:
-
-```bash
 #!/bin/bash
 
 COMPOSE_FILE="docker-compose.yml"
 LB_CONF="nginx-lb.conf"
 
 # -------------------------------------------------------------------------
-# INSTALAÇÃO AUTOMÁTICA DE DEPENDÊNCIAS (OTIMIZADO PARA UBUNTU)
+# INSTAÇÃO AUTOMÁTICA DE DEPENDÊNCIAS (APENAS DOCKER COMPOSE PLUGIN)
 # -------------------------------------------------------------------------
 install_dependencies() {
     if command -v docker &>/dev/null && docker compose version &>/dev/null; then
-        echo "[✅] Docker e Docker Compose já estão instalados."
+        echo "[✅] Docker e Docker Compose já estão prontos."
         return 0
     fi
 
-    echo "[ℹ️] Docker ou Docker Compose não encontrados. Iniciando instalação automatizada..."
-    
+    echo "[ℹ️] Docker Compose não encontrado. Iniciando instalação..."
+
     if [ "$EUID" -ne 0 ]; then
         echo "❌ Erro: Execute este script com sudo para instalar as dependências: sudo $0 up"
         exit 1
@@ -43,7 +36,7 @@ install_dependencies() {
             apt-get install -y docker-compose-v2
             ;;
         *)
-            echo "❌ Erro: Este script foi otimizado para Ubuntu/Debian. Instale o Docker manualmente."
+            echo "❌ Erro: Este script foi otimizado para Ubuntu/Debian. Instale as dependências manualmente."
             exit 1
             ;;
     esac
@@ -52,7 +45,7 @@ install_dependencies() {
 }
 
 # -------------------------------------------------------------------------
-# GERAÇÃO DINÂMICA DE CONFIGURAÇÕES (PAINEL UNIFICADO E FAILOVER)
+# GERAÇÃO DINÂMICA DE CONFIGURAÇÕES (SEM ESPAÇOS INVÁLIDOS)
 # -------------------------------------------------------------------------
 generate_configs() {
     echo "[+] Gerando configuração do Load Balancer ($LB_CONF)..."
@@ -71,14 +64,14 @@ http {
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            
-            # FAILOVER ULTRA-RÁPIDO (Desvia em 500ms se o nó estiver fora)
+
+            # FAILOVER ULTRA-RÁPIDO
             proxy_connect_timeout 500ms;
             proxy_read_timeout 500ms;
             proxy_send_timeout 500ms;
             proxy_next_upstream error timeout invalid_header http_502 http_503 http_504;
 
-            # DESTRUIÇÃO DE CACHE COMPLETA
+            # DESTRUIÇÃO DE CACHE
             add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
             add_header Pragma "no-cache";
             add_header Expires "0";
@@ -116,8 +109,9 @@ services:
       - /bin/sh
       - -c
       - |
-        rm -f /var/log/nginx/access.log && touch /var/log/nginx/access.log && chmod 666 /var/log/nginx/access.log
+        mkdir -p /var/log/nginx && touch /var/log/nginx/access.log
         nginx
+        sleep 1
         [ ! -f /shared/app1.txt ] && echo "0" > /shared/app1.txt
         [ ! -f /shared/app2.txt ] && echo "0" > /shared/app2.txt
         [ ! -f /shared/app3.txt ] && echo "0" > /shared/app3.txt
@@ -151,8 +145,9 @@ services:
       - /bin/sh
       - -c
       - |
-        rm -f /var/log/nginx/access.log && touch /var/log/nginx/access.log && chmod 666 /var/log/nginx/access.log
+        mkdir -p /var/log/nginx && touch /var/log/nginx/access.log
         nginx
+        sleep 1
         [ ! -f /shared/app1.txt ] && echo "0" > /shared/app1.txt
         [ ! -f /shared/app2.txt ] && echo "0" > /shared/app2.txt
         [ ! -f /shared/app3.txt ] && echo "0" > /shared/app3.txt
@@ -186,8 +181,9 @@ services:
       - /bin/sh
       - -c
       - |
-        rm -f /var/log/nginx/access.log && touch /var/log/nginx/access.log && chmod 666 /var/log/nginx/access.log
+        mkdir -p /var/log/nginx && touch /var/log/nginx/access.log
         nginx
+        sleep 1
         [ ! -f /shared/app1.txt ] && echo "0" > /shared/app1.txt
         [ ! -f /shared/app2.txt ] && echo "0" > /shared/app2.txt
         [ ! -f /shared/app3.txt ] && echo "0" > /shared/app3.txt
@@ -220,7 +216,7 @@ EOF
 }
 
 # -------------------------------------------------------------------------
-# INTERFACES DE CONTROLE CLI (UP / DOWN / STOP / START / STATUS)
+# INTERFACES DE CONTROLE CLI
 # -------------------------------------------------------------------------
 show_help() {
     echo "====================================================================="
@@ -273,5 +269,3 @@ case "$1" in
         exit 1
         ;;
 esac
-
-```
