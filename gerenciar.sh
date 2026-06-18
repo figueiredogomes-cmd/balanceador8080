@@ -2,13 +2,21 @@
 
 COMPOSE_FILE="docker-compose.yml"
 LB_CONF="nginx-lb.conf"
+PID_FILE="./shared-data/traffic_generator.pid"
 
 # -------------------------------------------------------------------------
 # LIMPEZA PROFUNDA DO AMBIENTE DOCKER
 # -------------------------------------------------------------------------
 clear_cache() {
-    echo "[🧹] Removendo contêineres antigos para evitar conflitos de nome..."
-    # Força a remoção absoluta para resolver o erro de "Conflict" do daemon do Docker
+    echo "[🧹] Finalizando gerador de tráfego e limpando contêineres..."
+    
+    # Mata o loop de requisições do Shell anterior, se existir
+    if [ -f "$PID_FILE" ]; then
+        kill $(cat "$PID_FILE") 2>/dev/null
+        rm -f "$PID_FILE"
+    fi
+
+    # Força a remoção absoluta para evitar o erro de conflito de nomes do daemon
     sudo docker rm -f balanceador asr_node1 asr_node2 asr_node3 2>/dev/null
     
     if [ -f "$COMPOSE_FILE" ]; then
@@ -18,28 +26,75 @@ clear_cache() {
     rm -rf ./shared-data
     mkdir -p ./shared-data
     chmod -R 777 ./shared-data
+
+    # Inicializa os arquivos com zero absoluto
+    echo "0" > ./shared-data/app1.txt
+    echo "0" > ./shared-data/app2.txt
+    echo "0" > ./shared-data/app3.txt
+    echo "Nenhum" > ./shared-data/last_node.txt
 }
 
 # -------------------------------------------------------------------------
-# CONFIGURAÇÃO DO BALANCEADOR NGINX
+# SIMULADOR DE TRÁFEGO VIA SHELL SCRIPT (GERADOR ALTERNADO)
+# -------------------------------------------------------------------------
+start_traffic_generator() {
+    echo "[⚡] Iniciando gerador de tráfego Shell em segundo plano..."
+    
+    # Loop contínuo que bate na API do Load Balancer
+    (
+        while true; do
+            # Faz uma requisição silenciosa na porta do Nginx
+            curl -s http://localhost:8090/api > /dev/null
+            # Intervalo entre as requisições (0.2 segundos para alternar rápido)
+            sleep 0.2
+        done
+    ) &
+    
+    # Salva o PID do processo em background para podermos pará-lo depois
+    echo $! > "$PID_FILE"
+}
+
+# -------------------------------------------------------------------------
+# CONFIGURAÇÃO DO BALANCEADOR NGINX (ROUND ROBIN REAL)
 # -------------------------------------------------------------------------
 generate_configs() {
-    # Criando arquivo do Nginx básico para servir o painel
     cat << 'EOF' > $LB_CONF
 events { worker_connections 1024; }
 http {
     include /etc/nginx/mime.types;
+    
+    upstream asr_cluster {
+        # Distribuição pura: Uma requisição para cada de forma cíclica
+        server asr_node1:3000 max_fails=1 fail_timeout=1s;
+        server asr_node2:3000 max_fails=1 fail_timeout=1s;
+        server asr_node3:3000 max_fails=1 fail_timeout=1s;
+    }
+    
     server {
         listen 80;
+        
         location / {
             root /usr/share/nginx/html;
             index index.html;
+        }
+
+        location /api {
+            proxy_pass http://asr_cluster/;
+            proxy_next_upstream error timeout invalid_header http_502 http_503 http_504;
+            proxy_connect_timeout 150ms;
+            proxy_read_timeout 150ms;
+            add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0";
+        }
+
+        location /stats.json {
+            alias /shared/stats.json;
+            add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0";
+            add_header Access-Control-Allow-Origin "*";
         }
     }
 }
 EOF
 
-    # Docker Compose simplificado e imune a erros de permissão ou variáveis vazias
     cat << 'EOF' > $COMPOSE_FILE
 services:
   balanceador:
@@ -54,56 +109,86 @@ services:
       - /bin/sh
       - -c
       - |
-        # Injeta o Dashboard Inteligente com o simulador de Round Robin Síncrono integrado
-        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Topologia ASR Ativa</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>body{background-color:#f3f4f6;color:#1f2937;font-family:"Inter",sans-serif;margin:0;padding:40px;display:flex;justify-content:center;} .container{width:100%;max-width:1000px;} .header-panel{background-color:#2d3748;color:#ffffff;border-radius:12px;padding:30px;text-align:center;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);margin-bottom:30px;} .header-panel h1{margin:0;font-size:2em;font-weight:700;} .status-api{font-size:1.2em;color:#cbd5e0;margin-top:12px;font-weight:600;} #current-node{color:#63b3ed;text-shadow:0 0 4px rgba(99,179,237,0.5);font-weight:700;} .grid{display:flex;gap:20px;justify-content:space-between;} .card{background:#ffffff;border-radius:12px;width:32%;padding:30px;box-sizing:border-box;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);border:1px solid #e2e8f0;text-align:center;} .card-title{font-size:1.15em;font-weight:700;color:#2d3748;margin-bottom:20px;} .count{font-size:4.5em;font-weight:700;color:#1a202c;margin:20px 0;} .status-badge{display:inline-block;padding:6px 16px;border-radius:20px;font-weight:600;font-size:0.85em;} .online-badge{background-color:#c6f6d5;color:#22543d;} .offline-badge{background-color:#fed7d7;color:#742a2a;animation:pulse 1s infinite;} @keyframes pulse{0%{opacity:1;}50%{opacity:0.4;}100%{opacity:1;}}</style></head><body><div class="container"><div class="header-panel"><h1>⚡ Topologia Cluster ASR Ativo</h1><div class="status-api">Instância respondendo agora: <span id="current-node">Aguardando...</span></div></div><div class="grid"><div class="card"><div class="card-title">Servidor ASR 1</div><div class="count" id="c1">0</div><div><span id="s1" class="status-badge online-badge">ONLINE</span></div></div><div class="card"><div class="card-title">Servidor ASR 2</div><div class="count" id="c2">0</div><div><span id="s2" class="status-badge online-badge">ONLINE</span></div></div><div class="card"><div class="card-title">Servidor ASR 3</div><div class="count" id="c3">0</div><div><span id="s3" class="status-badge online-badge">ONLINE</span></div></div></div></div><script>
-        // Recupera estados persistidos no navegador para não zerar ao dar Refresh
-        let c1 = parseInt(localStorage.getItem("asr_c1") || 0);
-        let c2 = parseInt(localStorage.getItem("asr_c2") || 0);
-        let c3 = parseInt(localStorage.getItem("asr_c3") || 0);
-        let ultimoNo = localStorage.getItem("asr_last") || "Nenhum";
-        let proximoNo = parseInt(localStorage.getItem("asr_next") || 1);
-
-        // Função de distribuição síncrona (Round Robin Puro)
-        function simularRequisicao() {
-            if (proximoNo === 1) {
-                c1++;
-                ultimoNo = "Servidor ASR 1";
-                proximoNo = 2;
-            } else if (proximoNo === 2) {
-                c2++;
-                ultimoNo = "Servidor ASR 2";
-                proximoNo = 3;
-            } else if (proximoNo === 3) {
-                c3++;
-                ultimoNo = "Servidor ASR 3";
-                proximoNo = 1;
-            }
-            
-            // Salva no LocalStorage para sobreviver ao F5/Refresh da página
-            localStorage.setItem("asr_c1", c1);
-            localStorage.setItem("asr_c2", c2);
-            localStorage.setItem("asr_c3", c3);
-            localStorage.setItem("asr_last", ultimoNo);
-            localStorage.setItem("asr_next", proximoNo);
-            
-            // Atualiza o visual dinamicamente
-            renderizarPainel();
+        # Painel HTML que apenas lê o arquivo gerado pelo back-end (Sem simulação no front)
+        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Topologia ASR Ativa</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>body{background-color:#f3f4f6;color:#1f2937;font-family:"Inter",sans-serif;margin:0;padding:40px;display:flex;justify-content:center;} .container{width:100%;max-width:1000px;} .header-panel{background-color:#2d3748;color:#ffffff;border-radius:12px;padding:30px;text-align:center;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);margin-bottom:30px;} .header-panel h1{margin:0;font-size:2em;font-weight:700;} .status-api{font-size:1.2em;color:#cbd5e0;margin-top:12px;font-weight:600;} #current-node{color:#63b3ed;text-shadow:0 0 4px rgba(99,179,237,0.5);font-weight:700;} .grid{display:flex;gap:20px;justify-content:space-between;} .card{background:#ffffff;border-radius:12px;width:32%;padding:30px;box-sizing:border-box;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);border:1px solid #e2e8f0;text-align:center;} .card-title{font-size:1.15em;font-weight:700;color:#2d3748;margin-bottom:20px;} .count{font-size:4.5em;font-weight:700;color:#1a202c;margin:20px 0;} .status-badge{display:inline-block;padding:6px 16px;border-radius:20px;font-weight:600;font-size:0.85em;} .online-badge{background-color:#c6f6d5;color:#22543d;} .offline-badge{background-color:#fed7d7;color:#742a2a;animation:pulse 1s infinite;}</style></head><body><div class="container"><div class="header-panel"><h1>⚡ Topologia Cluster ASR Ativo</h1><div class="status-api">Último Nó Respondendo ao Shell: <span id="current-node">...</span></div></div><div class="grid"><div class="card"><div class="card-title">Servidor ASR 1</div><div class="count" id="c1">0</div><div><span id="s1" class="status-badge online-badge">ONLINE</span></div></div><div class="card"><div class="card-title">Servidor ASR 2</div><div class="count" id="c2">0</div><div><span id="s2" class="status-badge online-badge">ONLINE</span></div></div><div class="card"><div class="card-title">Servidor ASR 3</div><div class="count" id="c3">0</div><div><span id="s3" class="status-badge online-badge">ONLINE</span></div></div></div></div><script>
+        function atualizarPainel(){
+            fetch("/stats.json",{cache:"no-store"}).then(r=>r.json()).then(d=>{
+                document.getElementById("current-node").innerText=d.last_node||"...";
+                for(let i=1;i<=3;i++){
+                    document.getElementById("c"+i).innerText=d["app"+i];
+                    let sEl=document.getElementById("s"+i);
+                    if(d["status"+i]==="ONLINE"){
+                        sEl.innerText="ONLINE";sEl.className="status-badge online-badge";
+                    }else{
+                        sEl.innerText="CONGELADO";sEl.className="status-badge offline-badge";
+                    }
+                }
+            }).catch(e=>console.log("Sincronizando..."));
         }
-
-        function renderizarPainel() {
-            document.getElementById("c1").innerText = c1;
-            document.getElementById("c2").innerText = c2;
-            document.getElementById("c3").innerText = c3;
-            document.getElementById("current-node").innerText = ultimoNo;
-        }
-
-        // Executa uma nova contagem IMEDIATAMENTE quando você dá Refresh na página
-        simularRequisicao();
-
-        // Além do Refresh, mantém o contador subindo automaticamente a cada 1 segundo
-        setInterval(simularRequisicao, 1000);
+        // Apenas lê os dados reais a cada 200ms
+        setInterval(atualizarPainel, 200);
+        atualizarPainel();
         </script></body></html>' > /usr/share/nginx/html/index.html
-        nginx -g 'daemon off;'
+        nginx
+        
+        # Consolidador de logs/métricas rodando em segundo plano no Nginx
+        while true; do
+          s1="ONLINE"; [ ! -f /shared/app1.alive ] && s1="CONGELADO"
+          s2="ONLINE"; [ ! -f /shared/app2.alive ] && s2="CONGELADO"
+          s3="ONLINE"; [ ! -f /shared/app3.alive ] && s3="CONGELADO"
+          c1=$(cat /shared/app1.txt 2>/dev/null || echo 0)
+          c2=$(cat /shared/app2.txt 2>/dev/null || echo 0)
+          c3=$(cat /shared/app3.txt 2>/dev/null || echo 0)
+          ln=$(cat /shared/last_node.txt 2>/dev/null || echo "Nenhum")
+          echo "{\"app1\":$c1,\"app2\":$c2,\"app3\":$c3,\"status1\":\"$s1\",\"status2\":\"$s2\",\"status3\":\"$s3\",\"last_node\":\"$ln\"}" > /shared/stats.json
+          rm -f /shared/*.alive
+          sleep 0.2
+        done
+    depends_on: [asr_node1, asr_node2, asr_node3]
+    networks: [cluster_net]
+
+  asr_node1:
+    image: node:18-alpine
+    container_name: asr_node1
+    networks: [cluster_net]
+    volumes:
+      - ./shared-data:/shared
+    command:
+      - sh
+      - -c
+      - |
+        echo "const http = require('http'); const fs = require('fs'); http.createServer((req, res) => { try { const c = parseInt(fs.readFileSync('/shared/app1.txt', 'utf8').trim() || 0) + 1; fs.writeFileSync('/shared/app1.txt', String(c)); fs.writeFileSync('/shared/last_node.txt', 'Servidor ASR 1'); } catch(e){} res.writeHead(200, {'Content-Type': 'text/plain'}); res.end('OK'); }).listen(3000);" > server.js
+        while true; do echo "yes" > /shared/app1.alive; node server.js; sleep 0.2; done
+
+  asr_node2:
+    image: node:18-alpine
+    container_name: asr_node2
+    networks: [cluster_net]
+    volumes:
+      - ./shared-data:/shared
+    command:
+      - sh
+      - -c
+      - |
+        echo "const http = require('http'); const fs = require('fs'); http.createServer((req, res) => { try { const c = parseInt(fs.readFileSync('/shared/app2.txt', 'utf8').trim() || 0) + 1; fs.writeFileSync('/shared/app2.txt', String(c)); fs.writeFileSync('/shared/last_node.txt', 'Servidor ASR 2'); } catch(e){} res.writeHead(200, {'Content-Type': 'text/plain'}); res.end('OK'); }).listen(3000);" > server.js
+        while true; do echo "yes" > /shared/app2.alive; node server.js; sleep 0.2; done
+
+  asr_node3:
+    image: node:18-alpine
+    container_name: asr_node3
+    networks: [cluster_net]
+    volumes:
+      - ./shared-data:/shared
+    command:
+      - sh
+      - -c
+      - |
+        echo "const http = require('http'); const fs = require('fs'); http.createServer((req, res) => { try { const c = parseInt(fs.readFileSync('/shared/app3.txt', 'utf8').trim() || 0) + 1; fs.writeFileSync('/shared/app3.txt', String(c)); fs.writeFileSync('/shared/last_node.txt', 'Servidor ASR 3'); } catch(e){} res.writeHead(200, {'Content-Type': 'text/plain'}); res.end('OK'); }).listen(3000);" > server.js
+        while true; do echo "yes" > /shared/app3.alive; node server.js; sleep 0.2; done
+
+networks:
+  cluster_net:
+    driver: bridge
 EOF
 }
 
@@ -114,15 +199,31 @@ case "$1" in
     up)
         clear_cache
         generate_configs
-        echo "[+] Inicializando topologia de balanceamento ASR corrigida..."
+        echo "[+] Inicializando infraestrutura real balanceada no Docker..."
         sudo docker compose up -d --remove-orphans
+        
+        # Aguarda 2 segundos para dar tempo aos contêineres subirem totalmente
+        sleep 2
+        
+        # Dispara o gerador de tráfego alternado em Shell Script
+        start_traffic_generator
+        
         echo "[✅] Sucesso absoluto! Abra no seu navegador: http://localhost:8090"
         ;;
     down)
         clear_cache
-        echo "[✅] Ambiente limpo com sucesso."
+        echo "[✅] Ambiente finalizado com sucesso."
+        ;;
+    stop)
+        if [ -z "$2" ]; then echo "❌ Defina o nó: asr_node1, asr_node2 ou asr_node3"; exit 1; fi
+        sudo docker compose stop $2
+        echo "[✅] Instância $2 pausada."
+        ;;
+    start)
+        if [ -z "$2" ]; then echo "❌ Defina o nó: asr_node1, asr_node2 ou asr_node3"; exit 1; fi
+        sudo docker compose start $2
+        echo "[✅] Instância $2 reintroduzida."
         ;;
     *)
-        echo "Use: sudo bash ./gerenciar.sh [up | down]"
+        echo "Use: sudo bash ./gerenciar.sh [up | down | stop | start]"
         ;;
-esac
