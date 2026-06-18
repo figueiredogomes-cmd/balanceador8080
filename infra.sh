@@ -4,7 +4,7 @@ COMPOSE_FILE="docker-compose.yml"
 LB_CONF="nginx-lb.conf"
 
 # -------------------------------------------------------------------------
-# INSTALAÇÃO AUTOMÁTICA DE DEPENDÊNCIAS (APENAS DOCKER COMPOSE PLUGIN)
+# INSTALAÇÃO AUTOMÁTICA DE DEPENDÊNCIAS
 # -------------------------------------------------------------------------
 install_dependencies() {
     if command -v docker &>/dev/null && docker compose version &>/dev/null; then
@@ -45,7 +45,7 @@ install_dependencies() {
 }
 
 # -------------------------------------------------------------------------
-# GERAÇÃO DINÂMICA DE CONFIGURAÇÕES (FAILOVER COMPLETO E CORREÇÃO DE LOGS)
+# GERAÇÃO DINÂMICA DE CONFIGURAÇÕES (DASHBOARD REATIVO + HEARTBEAT)
 # -------------------------------------------------------------------------
 generate_configs() {
     echo "[+] Gerando configuração do Load Balancer ($LB_CONF)..."
@@ -71,7 +71,7 @@ http {
             proxy_send_timeout 500ms;
             proxy_next_upstream error timeout invalid_header http_502 http_503 http_504;
 
-            # DESTRUIÇÃO DE CACHE INTERNA
+            # DESTRUIÇÃO DE CACHE
             add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
             add_header Pragma "no-cache";
             add_header Expires "0";
@@ -80,7 +80,7 @@ http {
 }
 EOF
 
-    echo "[+] Gerando topologia multi-contêiner com Volume Compartilhado ($COMPOSE_FILE)..."
+    echo "[+] Gerando topologia com API de monitoramento em tempo real ($COMPOSE_FILE)..."
     cat << 'EOF' > $COMPOSE_FILE
 version: '3.8'
 services:
@@ -109,29 +109,43 @@ services:
       - /bin/sh
       - -c
       - |
-        rm -f /var/log/nginx/access.log
-        touch /var/log/nginx/access.log
+        rm -f /var/log/nginx/access.log && touch /var/log/nginx/access.log
         nginx
         sleep 1
         [ ! -f /shared/app1.txt ] && echo "0" > /shared/app1.txt
         [ ! -f /shared/app2.txt ] && echo "0" > /shared/app2.txt
         [ ! -f /shared/app3.txt ] && echo "0" > /shared/app3.txt
         
-        count=$(cat /shared/app1.txt)
-        
-        render_page() {
+        # 1. ENGENHARIA DO DASHBOARD ATIVO (SPA com Vanilla JS)
+        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Dashboard Ativo</title><style>body{font-family:sans-serif;text-align:center;padding-top:30px;background:#f4f6f7;margin:0;} .container{max-width:850px;margin:0 auto;} .header{background:#2c3e50;color:white;padding:20px;border-radius:8px;margin-bottom:20px;} .card{background:white;padding:20px;margin:10px;display:inline-block;width:210px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);transition:all 0.3s;} .online{border-top:5px solid #2ecc71;} .offline{border-top:5px solid #e74c3c;opacity:0.6;} .badge{display:inline-block;padding:4px 8px;border-radius:12px;font-size:0.8em;font-weight:bold;color:white;} .bg-online{background:#2ecc71;} .bg-offline{background:#e74c3c;} .counter{font-size:2.5em;color:#2c3e50;margin:10px 0; font-weight:bold;}</style></head><body><div class="container"><div class="header"><h1>⚡ Painel de Infraestrutura Ativo</h1><p>Nó respondendo à API agora: <span id="live-responder" style="color:#f1c40f;font-weight:bold;">...</span></p></div><div><div id="card-app1" class="card"><h3>Servidor APP 1</h3><span id="badge-app1" class="badge">...</span><div id="count-app1" class="counter">0</div></div><div id="card-app2" class="card"><h3>Servidor APP 2</h3><span id="badge-app2" class="badge">...</span><div id="count-app2" class="counter">0</div></div><div id="card-app3" class="card"><h3>Servidor APP 3</h3><span id="badge-app3" class="badge">...</span><div id="count-app3" class="counter">0</div></div></div></div><script>function updateData(){fetch("/stats.json",{cache:"no-store"}).then(r=>r.json()).then(data=>{document.getElementById("live-responder").innerText=data.responder;["app1","app2","app3"].forEach(id=>{const card=document.getElementById("card-"+id);const badge=document.getElementById("badge-"+id);document.getElementById("count-"+id).innerText=data[id].count;badge.innerText=data[id].status.toUpperCase();if(data[id].status==="online"){card.className="card online";badge.className="badge bg-online";}else{card.className="card offline";badge.className="badge bg-offline热";badge.className="badge bg-offline";}});}).catch(e=>console.log("Erro API"));}setInterval(updateData,1000);updateData();</script></body></html>' > /usr/share/nginx/html/index.html
+
+        # 2. LOOP DE HEARTBEAT E EXPOSIÇÃO DA API JSON
+        while true; do
+          date +%s > /shared/app1.heartbeat
+          now=$(date +%s)
+          
           c1=$(cat /shared/app1.txt 2>/dev/null || echo 0)
           c2=$(cat /shared/app2.txt 2>/dev/null || echo 0)
           c3=$(cat /shared/app3.txt 2>/dev/null || echo 0)
-          echo "<html><head><meta http-equiv='cache-control' content='no-cache'><style>body{font-family:sans-serif;text-align:center;padding-top:30px;background:#f4f6f7;} .container{max-width:800px;margin:0 auto;} .card{background:white;padding:15px;margin:10px;display:inline-block;width:200px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);} .current{border:3px solid #3498db;background:#e8f4fd;}</style></head><body><div class='container'><h1>Painel Central de Requisições</h1><p style='font-size:1.2em;'>Quem respondeu agora: <span style='color:#3498db;font-weight:bold;'>Servidor APP 1</span></p><hr><div class='card current'><h3>Servidor APP 1</h3><p style='font-size:2em;color:#2c3e50;'>$c1</p></div><div class='card'><h3>Servidor APP 2</h3><p style='font-size:2em;color:#2c3e50;'>$c2</p></div><div class='card'><h3>Servidor APP 3</h3><p style='font-size:2em;color:#2c3e50;'>$c3</p></div></div></body></html>" > /usr/share/nginx/html/index.html
-        }
-        
-        render_page
+          
+          h1=$(cat /shared/app1.heartbeat 2>/dev/null || echo 0)
+          h2=$(cat /shared/app2.heartbeat 2>/dev/null || echo 0)
+          h3=$(cat /shared/app3.heartbeat 2>/dev/null || echo 0)
+          
+          s1="online"; [ $((now - h1)) -gt 4 ] && s1="offline"
+          s2="online"; [ $((now - h2)) -gt 4 ] && s2="offline"
+          s3="online"; [ $((now - h3)) -gt 4 ] && s3="offline"
+          
+          echo "{\"app1\":{\"count\":$c1,\"status\":\"$s1\"},\"app2\":{\"count\":$c2,\"status\":\"$s2\"},\"app3\":{\"count\":$c3,\"status\":\"$s3\"},\"responder\":\"Servidor APP 1\"}" > /usr/share/nginx/html/stats.json
+          sleep 1
+        done &
+
+        # 3. CONTABILIZAÇÃO EXCLUSIVA VIA LOGS (Ignorando a própria API)
         tail -f /var/log/nginx/access.log | while read -r line; do
-          if echo "$line" | grep -q 'GET / '; then
+          if echo "$line" | grep -q '"GET / HTTP/'; then
+            count=$(cat /shared/app1.txt)
             count=$((count+1))
             echo "$count" > /shared/app1.txt
-            render_page
           fi
         done
 
@@ -146,29 +160,40 @@ services:
       - /bin/sh
       - -c
       - |
-        rm -f /var/log/nginx/access.log
-        touch /var/log/nginx/access.log
+        rm -f /var/log/nginx/access.log && touch /var/log/nginx/access.log
         nginx
         sleep 1
         [ ! -f /shared/app1.txt ] && echo "0" > /shared/app1.txt
         [ ! -f /shared/app2.txt ] && echo "0" > /shared/app2.txt
         [ ! -f /shared/app3.txt ] && echo "0" > /shared/app3.txt
         
-        count=$(cat /shared/app2.txt)
-        
-        render_page() {
+        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Dashboard Ativo</title><style>body{font-family:sans-serif;text-align:center;padding-top:30px;background:#f4f6f7;margin:0;} .container{max-width:850px;margin:0 auto;} .header{background:#2c3e50;color:white;padding:20px;border-radius:8px;margin-bottom:20px;} .card{background:white;padding:20px;margin:10px;display:inline-block;width:210px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);transition:all 0.3s;} .online{border-top:5px solid #2ecc71;} .offline{border-top:5px solid #e74c3c;opacity:0.6;} .badge{display:inline-block;padding:4px 8px;border-radius:12px;font-size:0.8em;font-weight:bold;color:white;} .bg-online{background:#2ecc71;} .bg-offline{background:#e74c3c;} .counter{font-size:2.5em;color:#2c3e50;margin:10px 0; font-weight:bold;}</style></head><body><div class="container"><div class="header"><h1>⚡ Painel de Infraestrutura Ativo</h1><p>Nó respondendo à API agora: <span id="live-responder" style="color:#f1c40f;font-weight:bold;">...</span></p></div><div><div id="card-app1" class="card"><h3>Servidor APP 1</h3><span id="badge-app1" class="badge">...</span><div id="count-app1" class="counter">0</div></div><div id="card-app2" class="card"><h3>Servidor APP 2</h3><span id="badge-app2" class="badge">...</span><div id="count-app2" class="counter">0</div></div><div id="card-app3" class="card"><h3>Servidor APP 3</h3><span id="badge-app3" class="badge">...</span><div id="count-app3" class="counter">0</div></div></div></div><script>function updateData(){fetch("/stats.json",{cache:"no-store"}).then(r=>r.json()).then(data=>{document.getElementById("live-responder").innerText=data.responder;["app1","app2","app3"].forEach(id=>{const card=document.getElementById("card-"+id);const badge=document.getElementById("badge-"+id);document.getElementById("count-"+id).innerText=data[id].count;badge.innerText=data[id].status.toUpperCase();if(data[id].status==="online"){card.className="card online";badge.className="badge bg-online";}else{card.className="card offline";badge.className="badge bg-offline热";badge.className="badge bg-offline";}});}).catch(e=>console.log("Erro API"));}setInterval(updateData,1000);updateData();</script></body></html>' > /usr/share/nginx/html/index.html
+
+        while true; do
+          date +%s > /shared/app2.heartbeat
+          now=$(date +%s)
+          
           c1=$(cat /shared/app1.txt 2>/dev/null || echo 0)
           c2=$(cat /shared/app2.txt 2>/dev/null || echo 0)
           c3=$(cat /shared/app3.txt 2>/dev/null || echo 0)
-          echo "<html><head><meta http-equiv='cache-control' content='no-cache'><style>body{font-family:sans-serif;text-align:center;padding-top:30px;background:#f4f6f7;} .container{max-width:800px;margin:0 auto;} .card{background:white;padding:15px;margin:10px;display:inline-block;width:200px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);} .current{border:3px solid #2ecc71;background:#eafaf1;}</style></head><body><div class='container'><h1>Painel Central de Requisições</h1><p style='font-size:1.2em;'>Quem respondeu agora: <span style='color:#2ecc71;font-weight:bold;'>Servidor APP 2</span></p><hr><div class='card'><h3>Servidor APP 1</h3><p style='font-size:2em;color:#2c3e50;'>$c1</p></div><div class='card current'><h3>Servidor APP 2</h3><p style='font-size:2em;color:#2c3e50;'>$c2</p></div><div class='card'><h3>Servidor APP 3</h3><p style='font-size:2em;color:#2c3e50;'>$c3</p></div></div></body></html>" > /usr/share/nginx/html/index.html
-        }
-        
-        render_page
+          
+          h1=$(cat /shared/app1.heartbeat 2>/dev/null || echo 0)
+          h2=$(cat /shared/app2.heartbeat 2>/dev/null || echo 0)
+          h3=$(cat /shared/app3.heartbeat 2>/dev/null || echo 0)
+          
+          s1="online"; [ $((now - h1)) -gt 4 ] && s1="offline"
+          s2="online"; [ $((now - h2)) -gt 4 ] && s2="offline"
+          s3="online"; [ $((now - h3)) -gt 4 ] && s3="offline"
+          
+          echo "{\"app1\":{\"count\":$c1,\"status\":\"$s1\"},\"app2\":{\"count\":$c2,\"status\":\"$s2\"},\"app3\":{\"count\":$c3,\"status\":\"$s3\"},\"responder\":\"Servidor APP 2\"}" > /usr/share/nginx/html/stats.json
+          sleep 1
+        done &
+
         tail -f /var/log/nginx/access.log | while read -r line; do
-          if echo "$line" | grep -q 'GET / '; then
+          if echo "$line" | grep -q '"GET / HTTP/'; then
+            count=$(cat /shared/app2.txt)
             count=$((count+1))
             echo "$count" > /shared/app2.txt
-            render_page
           fi
         done
 
@@ -183,29 +208,40 @@ services:
       - /bin/sh
       - -c
       - |
-        rm -f /var/log/nginx/access.log
-        touch /var/log/nginx/access.log
+        rm -f /var/log/nginx/access.log && touch /var/log/nginx/access.log
         nginx
         sleep 1
         [ ! -f /shared/app1.txt ] && echo "0" > /shared/app1.txt
         [ ! -f /shared/app2.txt ] && echo "0" > /shared/app2.txt
         [ ! -f /shared/app3.txt ] && echo "0" > /shared/app3.txt
         
-        count=$(cat /shared/app3.txt)
-        
-        render_page() {
+        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Dashboard Ativo</title><style>body{font-family:sans-serif;text-align:center;padding-top:30px;background:#f4f6f7;margin:0;} .container{max-width:850px;margin:0 auto;} .header{background:#2c3e50;color:white;padding:20px;border-radius:8px;margin-bottom:20px;} .card{background:white;padding:20px;margin:10px;display:inline-block;width:210px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);transition:all 0.3s;} .online{border-top:5px solid #2ecc71;} .offline{border-top:5px solid #e74c3c;opacity:0.6;} .badge{display:inline-block;padding:4px 8px;border-radius:12px;font-size:0.8em;font-weight:bold;color:white;} .bg-online{background:#2ecc71;} .bg-offline{background:#e74c3c;} .counter{font-size:2.5em;color:#2c3e50;margin:10px 0; font-weight:bold;}</style></head><body><div class="container"><div class="header"><h1>⚡ Painel de Infraestrutura Ativo</h1><p>Nó respondendo à API agora: <span id="live-responder" style="color:#f1c40f;font-weight:bold;">...</span></p></div><div><div id="card-app1" class="card"><h3>Servidor APP 1</h3><span id="badge-app1" class="badge">...</span><div id="count-app1" class="counter">0</div></div><div id="card-app2" class="card"><h3>Servidor APP 2</h3><span id="badge-app2" class="badge">...</span><div id="count-app2" class="counter">0</div></div><div id="card-app3" class="card"><h3>Servidor APP 3</h3><span id="badge-app3" class="badge">...</span><div id="count-app3" class="counter">0</div></div></div></div><script>function updateData(){fetch("/stats.json",{cache:"no-store"}).then(r=>r.json()).then(data=>{document.getElementById("live-responder").innerText=data.responder;["app1","app2","app3"].forEach(id=>{const card=document.getElementById("card-"+id);const badge=document.getElementById("badge-"+id);document.getElementById("count-"+id).innerText=data[id].count;badge.innerText=data[id].status.toUpperCase();if(data[id].status==="online"){card.className="card online";badge.className="badge bg-online";}else{card.className="card offline";badge.className="badge bg-offline热";badge.className="badge bg-offline";}});}).catch(e=>console.log("Erro API"));}setInterval(updateData,1000);updateData();</script></body></html>' > /usr/share/nginx/html/index.html
+
+        while true; do
+          date +%s > /shared/app3.heartbeat
+          now=$(date +%s)
+          
           c1=$(cat /shared/app1.txt 2>/dev/null || echo 0)
           c2=$(cat /shared/app2.txt 2>/dev/null || echo 0)
           c3=$(cat /shared/app3.txt 2>/dev/null || echo 0)
-          echo "<html><head><meta http-equiv='cache-control' content='no-cache'><style>body{font-family:sans-serif;text-align:center;padding-top:30px;background:#f4f6f7;} .container{max-width:800px;margin:0 auto;} .card{background:white;padding:15px;margin:10px;display:inline-block;width:200px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.05);} .current{border:3px solid #9b59b6;background:#f5eef8;}</style></head><body><div class='container'><h1>Painel Central de Requisições</h1><p style='font-size:1.2em;'>Quem respondeu agora: <span style='color:#9b59b6;font-weight:bold;'>Servidor APP 3</span></p><hr><div class='card'><h3>Servidor APP 1</h3><p style='font-size:2em;color:#2c3e50;'>$c1</p></div><div class='card'><h3>Servidor APP 2</h3><p style='font-size:2em;color:#2c3e50;'>$c2</p></div><div class='card current'><h3>Servidor APP 3</h3><p style='font-size:2em;color:#2c3e50;'>$c3</p></div></div></body></html>" > /usr/share/nginx/html/index.html
-        }
-        
-        render_page
+          
+          h1=$(cat /shared/app1.heartbeat 2>/dev/null || echo 0)
+          h2=$(cat /shared/app2.heartbeat 2>/dev/null || echo 0)
+          h3=$(cat /shared/app3.heartbeat 2>/dev/null || echo 0)
+          
+          s1="online"; [ $((now - h1)) -gt 4 ] && s1="offline"
+          s2="online"; [ $((now - h2)) -gt 4 ] && s2="offline"
+          s3="online"; [ $((now - h3)) -gt 4 ] && s3="offline"
+          
+          echo "{\"app1\":{\"count\":$c1,\"status\":\"$s1\"},\"app2\":{\"count\":$c2,\"status\":\"$s2\"},\"app3\":{\"count\":$c3,\"status\":\"$s3\"},\"responder\":\"Servidor APP 3\"}" > /usr/share/nginx/html/stats.json
+          sleep 1
+        done &
+
         tail -f /var/log/nginx/access.log | while read -r line; do
-          if echo "$line" | grep -q 'GET / '; then
+          if echo "$line" | grep -q '"GET / HTTP/'; then
+            count=$(cat /shared/app3.txt)
             count=$((count+1))
             echo "$count" > /shared/app3.txt
-            render_page
           fi
         done
 
