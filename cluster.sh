@@ -4,67 +4,62 @@ set -e
 
 PROJECT="balanceador8090"
 
-case "${1:-up}" in
+install_docker() {
 
-up)
-
-echo "========================================="
-echo " INSTALANDO DOCKER E DOCKER COMPOSE"
-echo "========================================="
-
-if ! command -v docker >/dev/null 2>&1; then
+```
+if command -v docker >/dev/null 2>&1; then
+    return
+fi
 
 sudo apt update
 
-sudo apt install -y 
-ca-certificates 
-curl 
-gnupg 
-lsb-release
+sudo apt install -y \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release
 
 sudo install -m 0755 -d /etc/apt/keyrings
 
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | 
-sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+    sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 
 sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
-echo 
-"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | 
-sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+    sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
 
 sudo apt update
 
-sudo apt install -y 
-docker-ce 
-docker-ce-cli 
-containerd.io 
-docker-buildx-plugin 
-docker-compose-plugin
+sudo apt install -y \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin
+```
 
-fi
+}
 
-if ! sudo docker compose version >/dev/null 2>&1; then
-sudo apt update
-sudo apt install -y docker-compose-plugin
-fi
+create_project() {
 
-mkdir -p $PROJECT/nginx
+```
+mkdir -p "$PROJECT/nginx"
 
-cd $PROJECT
+cd "$PROJECT"
 
 cat > nginx/nginx.conf <<'EOF'
+```
+
 events {}
 
 http {
 
 ```
 upstream backend {
-
     server app1:80 max_fails=1 fail_timeout=5s;
     server app2:80 max_fails=1 fail_timeout=5s;
     server app3:80 max_fails=1 fail_timeout=5s;
-
 }
 
 server {
@@ -72,16 +67,8 @@ server {
     listen 80;
 
     location / {
-
         proxy_pass http://backend;
-
-        proxy_next_upstream error
-                            timeout
-                            http_500
-                            http_502
-                            http_503
-                            http_504;
-
+        proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
     }
 
 }
@@ -90,7 +77,10 @@ server {
 }
 EOF
 
+```
 cat > docker-compose.yml <<'EOF'
+```
+
 services:
 
 app1:
@@ -123,27 +113,29 @@ depends_on:
 ```
 
 EOF
+}
 
+case "${1:-up}" in
+
+up)
+install_docker
+create_project
 sudo docker compose up -d
-
-echo
-echo "Cluster iniciado"
-echo
-echo "http://localhost:8090"
+echo "Cluster iniciado: http://localhost:8090"
 ;;
 
 stop)
-cd $PROJECT
+cd "$PROJECT"
 sudo docker compose stop
 ;;
 
 start)
-cd $PROJECT
+cd "$PROJECT"
 sudo docker compose start
 ;;
 
 down)
-cd $PROJECT
+cd "$PROJECT"
 sudo docker compose down -v
 ;;
 
@@ -176,17 +168,6 @@ sudo docker start app3
 ;;
 
 *)
-echo "Uso:"
-echo "./cluster.sh up"
-echo "./cluster.sh stop"
-echo "./cluster.sh start"
-echo "./cluster.sh down"
-echo "./cluster.sh status"
-echo "./cluster.sh app1-stop"
-echo "./cluster.sh app1-start"
-echo "./cluster.sh app2-stop"
-echo "./cluster.sh app2-start"
-echo "./cluster.sh app3-stop"
-echo "./cluster.sh app3-start"
+echo "Uso: $0 {up|stop|start|down|status|app1-stop|app1-start|app2-stop|app2-start|app3-stop|app3-start}"
 ;;
 esac
