@@ -4,13 +4,63 @@ set -e
 
 echo "=========================================="
 echo " ASP.NET CORE + NGINX LOAD BALANCER"
-echo " PORTA 8090"
+echo " Ubuntu 22.04+ / WSL"
+echo " Porta 8090"
 echo "=========================================="
+
+if ! command -v docker >/dev/null 2>&1; then
+
+```
+echo "[1/5] Instalando Docker..."
+
+sudo apt update
+
+sudo apt install -y \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release
+
+sudo install -m 0755 -d /etc/apt/keyrings
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+    sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo \
+"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+
+sudo apt update
+
+sudo apt install -y \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin
+```
+
+fi
+
+if ! sudo docker compose version >/dev/null 2>&1; then
+
+```
+echo "[2/5] Instalando Docker Compose Plugin..."
+
+sudo apt update
+sudo apt install -y docker-compose-plugin
+```
+
+fi
 
 mkdir -p balanceador8090
 cd balanceador8090
 
 mkdir -p nginx api
+
+echo "[3/5] Criando Nginx..."
 
 cat > nginx/nginx.conf <<'EOF'
 events {}
@@ -59,11 +109,25 @@ server {
 }
 EOF
 
+echo "[4/5] Criando API ASP.NET Core..."
+
+cat > api/App.csproj <<'EOF' <Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>
+EOF
+
 cat > api/Program.cs <<'EOF'
 var builder = WebApplication.CreateBuilder(args);
+
 var app = builder.Build();
 
-var nomeServidor =
+var servidor =
 Environment.GetEnvironmentVariable("SERVER_NAME")
 ?? "DESCONHECIDO";
 
@@ -78,30 +142,16 @@ return Results.Text($@"
 ```
 
 ================================
-Servidor: {nomeServidor}
+Servidor: {servidor}
 Requisicoes: {contador}
 =======================
 
 ");
 });
 
-app.MapGet("/health", () =>
-{
-return Results.Ok("UP");
-});
+app.MapGet("/health", () => Results.Ok("UP"));
 
 app.Run("http://0.0.0.0:8080");
-EOF
-
-cat > api/App.csproj <<'EOF' <Project Sdk="Microsoft.NET.Sdk.Web">
-
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
-
-</Project>
 EOF
 
 cat > api/Dockerfile <<'EOF'
@@ -117,6 +167,8 @@ EXPOSE 8080
 
 ENTRYPOINT ["dotnet","/app/App.dll"]
 EOF
+
+echo "[5/5] Criando Docker Compose..."
 
 cat > docker-compose.yml <<'EOF'
 services:
@@ -158,26 +210,59 @@ depends_on:
 
 EOF
 
-docker compose up -d --build
+echo
+echo "Subindo cluster..."
+
+sudo docker compose up -d --build
 
 echo
 echo "=========================================="
 echo "CLUSTER INICIADO"
 echo "=========================================="
 echo
+echo "Acesse:"
 echo "http://localhost:8090"
 echo
-echo "TESTE:"
+echo "Teste:"
 echo "curl http://localhost:8090"
 echo
-echo "PARAR APP1:"
-echo "docker stop app1"
+echo "------------------------------------------"
+echo "COMANDOS"
+echo "------------------------------------------"
 echo
-echo "PARAR APP2:"
-echo "docker stop app2"
+echo "Parar APP1"
+echo "sudo docker stop app1"
 echo
-echo "VOLTAR APP1:"
-echo "docker start app1"
+echo "Iniciar APP1"
+echo "sudo docker start app1"
 echo
-echo "VOLTAR APP2:"
-echo "docker start app2"
+echo "Parar APP2"
+echo "sudo docker stop app2"
+echo
+echo "Iniciar APP2"
+echo "sudo docker start app2"
+echo
+echo "Parar APP3"
+echo "sudo docker stop app3"
+echo
+echo "Iniciar APP3"
+echo "sudo docker start app3"
+echo
+echo "Parar Cluster"
+echo "sudo docker compose stop"
+echo
+echo "Iniciar Cluster"
+echo "sudo docker compose start"
+echo
+echo "Destruir Cluster"
+echo "sudo docker compose down -v"
+echo
+echo "Ver Containers"
+echo "sudo docker ps"
+echo
+echo "=========================================="
+echo "Balanceamento:"
+echo "3 APIs = 33% cada"
+echo "2 APIs = 50% cada"
+echo "1 API = 100%"
+echo "=========================================="
