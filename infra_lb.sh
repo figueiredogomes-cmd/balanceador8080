@@ -4,81 +4,59 @@ COMPOSE_FILE="docker-compose.yml"
 LB_CONF="nginx-lb.conf"
 
 # -------------------------------------------------------------------------
-# FERRAMENTA DE INSTALAÇÃO AUTOMÁTICA DE DEPENDÊNCIAS
+# INSTALAÇÃO AUTOMÁTICA DE DEPENDÊNCIAS (OTIMIZADO PARA UBUNTU)
 # -------------------------------------------------------------------------
 install_dependencies() {
     if command -v docker &>/dev/null && docker compose version &>/dev/null; then
-        echo "[✅] Docker and Docker Compose are already installed."
+        echo "[✅] Docker e Docker Compose já estão instalados."
         return 0
     fi
 
-    echo "[ℹ️] Docker or Docker Compose not found. Starting automatic installation..."
+    echo "[ℹ️] Docker ou Docker Compose não encontrados. Iniciando instalação automatizada..."
     
-    # Verifica se o script está rodando como Root/Sudo (necessário para instalar pacotes)
     if [ "$EUID" -ne 0 ]; then
-        echo "❌ Error: Please run this script with sudo to install dependencies: sudo $0 up"
+        echo "❌ Erro: Execute este script com sudo para instalar as dependências: sudo $0 up"
         exit 1
     fi
 
-    # Detecta a distribuição Linux
     if [ -f /etc/os-release ]; then
         . /etc/os-release
         OS=$ID
     else
-        echo "❌ Error: Cannot detect Linux distribution. Install Docker manually."
+        echo "❌ Erro: Não foi possível detectar a distribuição Linux."
         exit 1
     fi
 
-    echo "[+] Detecting OS: $OS"
+    echo "[+] Sistema Operacional Detectado: $OS"
     case "$OS" in
         ubuntu|debian)
-            echo "[+] Updating apt repositories..."
+            echo "[+] Atualizando repositórios apt..."
             apt-get update -y
-            echo "[+] Installing Docker & Docker Compose..."
+            echo "[+] Instalando Docker e Docker Compose Plugin..."
             apt-get install -y docker.io docker-compose-v2
             systemctl enable --now docker
             ;;
-        centos|rhel|fedora)
-            echo "[+] Installing Docker & Docker Compose via DNF/YUM..."
-            yum install -y yum-utils
-            yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-            yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-            systemctl enable --now docker
-            ;;
         *)
-            echo "❌ Error: Unsupported Linux distribution ($OS). Please install Docker manually."
+            echo "❌ Erro: Este script foi otimizado para Ubuntu/Debian. Instale o Docker manualmente."
             exit 1
             ;;
     esac
 
-    echo "[✅] Installation completed successfully!"
+    echo "[✅] Dependências instaladas com sucesso!"
 }
 
-show_help() {
-    echo "====================================================================="
-    echo "  INFRASTRUCTURE MANAGER - AUTO-INSTALL & LOAD BALANCER CLI  "
-    echo "====================================================================="
-    echo "Usage: sudo $0 [command] [arguments]"
-    echo ""
-    echo "Available Commands:"
-    echo "  up             - Install dependencies (if missing) and start cluster"
-    echo "  down           - Stop and completely remove the full cluster infrastructure"
-    echo "  start [node]   - Start a specific backend server (e.g., $0 start app1)"
-    echo "  stop [node]    - Stop a specific backend server (e.g., $0 stop app1)"
-    echo "  remove [node]  - Remove a specific server container (e.g., $0 remove app1)"
-    echo "  status         - Display the current state of all containers"
-    echo "====================================================================="
-}
-
+# -------------------------------------------------------------------------
+# GERAÇÃO DINÂMICA DE CONFIGURAÇÕES (ANTI-CACHE E FAILOVER ULTRA-RÁPIDO)
+# -------------------------------------------------------------------------
 generate_configs() {
-    echo "[+] Generating Load Balancer configuration ($LB_CONF)..."
+    echo "[+] Gerando configuração do Load Balancer ($LB_CONF)..."
     cat << 'EOF' > $LB_CONF
 events { worker_connections 1024; }
 http {
     upstream backend_cluster {
-        server app1:80 max_fails=1 fail_timeout=3s;
-        server app2:80 max_fails=1 fail_timeout=3s;
-        server app3:80 max_fails=1 fail_timeout=3s;
+        server app1:80 max_fails=1 fail_timeout=1s;
+        server app2:80 max_fails=1 fail_timeout=1s;
+        server app3:80 max_fails=1 fail_timeout=1s;
     }
     server {
         listen 80;
@@ -87,13 +65,23 @@ http {
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            
+            # FAILOVER ULTRA-RÁPIDO (Se o nó caiu, desvia em 500ms sem travar a tela)
+            proxy_connect_timeout 500ms;
+            proxy_read_timeout 500ms;
+            proxy_send_timeout 500ms;
+            proxy_next_upstream error timeout invalid_header http_502 http_503 http_504;
+
+            # DESTRUIÇÃO DE CACHE COMPLETA PARA ATUALIZAÇÃO EM TEMPO REAL
             add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+            add_header Pragma "no-cache";
+            add_header Expires "0";
         }
     }
 }
 EOF
 
-    echo "[+] Generating multi-container topology ($COMPOSE_FILE)..."
+    echo "[+] Gerando topologia multi-contêiner ($COMPOSE_FILE)..."
     cat << 'EOF' > $COMPOSE_FILE
 version: '3.8'
 services:
@@ -125,11 +113,12 @@ services:
         chmod 666 /var/log/nginx/access.log
         nginx
         count=0
-        echo '<h1>Server APP 1</h1><p>Requests Processed: 0</p>' > /usr/share/nginx/html/index.html
-        tail -F /var/log/nginx/access.log | while read -r line; do
+        echo "<html><head><meta http-equiv='cache-control' content='no-cache'></head><body style='font-family:sans-serif; text-align:center; padding-top:50px;'><h1>Servidor APP 1</h1><hr><p style='font-size:2em; color:#2c3e50;'>Requisições Processadas: 0</p></body></html>" > /usr/share/nginx/html/index.html
+        
+        tail -f /var/log/nginx/access.log | while read -r line; do
           if echo "$$line" | grep -q 'GET / '; then
             count=$$((count+1))
-            echo "<h1>Server APP 1</h1><p>Requests Processed: $$count</p>" > /usr/share/nginx/html/index.html
+            echo "<html><head><meta http-equiv='cache-control' content='no-cache'></head><body style='font-family:sans-serif; text-align:center; padding-top:50px;'><h1>Servidor APP 1</h1><hr><p style='font-size:2em; color:#2c3e50;'>Requisições Processadas: $$count</p></body></html>" > /usr/share/nginx/html/index.html
           fi
         done
 
@@ -147,11 +136,12 @@ services:
         chmod 666 /var/log/nginx/access.log
         nginx
         count=0
-        echo '<h1>Server APP 2</h1><p>Requests Processed: 0</p>' > /usr/share/nginx/html/index.html
-        tail -F /var/log/nginx/access.log | while read -r line; do
+        echo "<html><head><meta http-equiv='cache-control' content='no-cache'></head><body style='font-family:sans-serif; text-align:center; padding-top:50px;'><h1>Servidor APP 2</h1><hr><p style='font-size:2em; color:#2c3e50;'>Requisições Processadas: 0</p></body></html>" > /usr/share/nginx/html/index.html
+        
+        tail -f /var/log/nginx/access.log | while read -r line; do
           if echo "$$line" | grep -q 'GET / '; then
             count=$$((count+1))
-            echo "<h1>Server APP 2</h1><p>Requests Processed: $$count</p>" > /usr/share/nginx/html/index.html
+            echo "<html><head><meta http-equiv='cache-control' content='no-cache'></head><body style='font-family:sans-serif; text-align:center; padding-top:50px;'><h1>Servidor APP 2</h1><hr><p style='font-size:2em; color:#2c3e50;'>Requisições Processadas: $$count</p></body></html>" > /usr/share/nginx/html/index.html
           fi
         done
 
@@ -169,11 +159,12 @@ services:
         chmod 666 /var/log/nginx/access.log
         nginx
         count=0
-        echo '<h1>Server APP 3</h1><p>Requests Processed: 0</p>' > /usr/share/nginx/html/index.html
-        tail -F /var/log/nginx/access.log | while read -r line; do
+        echo "<html><head><meta http-equiv='cache-control' content='no-cache'></head><body style='font-family:sans-serif; text-align:center; padding-top:50px;'><h1>Servidor APP 3</h1><hr><p style='font-size:2em; color:#2c3e50;'>Requisições Processadas: 0</p></body></html>" > /usr/share/nginx/html/index.html
+        
+        tail -f /var/log/nginx/access.log | while read -r line; do
           if echo "$$line" | grep -q 'GET / '; then
             count=$$((count+1))
-            echo "<h1>Server APP 3</h1><p>Requests Processed: $$count</p>" > /usr/share/nginx/html/index.html
+            echo "<html><head><meta http-equiv='cache-control' content='no-cache'></head><body style='font-family:sans-serif; text-align:center; padding-top:50px;'><h1>Servidor APP 3</h1><hr><p style='font-size:2em; color:#2c3e50;'>Requisições Processadas: $$count</p></body></html>" > /usr/share/nginx/html/index.html
           fi
         done
 
@@ -183,39 +174,55 @@ networks:
 EOF
 }
 
+# -------------------------------------------------------------------------
+# INTERFACES DE CONTROLE CLI (UP / DOWN / STOP / START / STATUS)
+# -------------------------------------------------------------------------
+show_help() {
+    echo "====================================================================="
+    echo "                 GERENCIADOR DE INFRAESTRUTURA - CLI                 "
+    echo "====================================================================="
+    echo "Uso: sudo $0 [comando] [argumentos]"
+    echo ""
+    echo "Comandos Disponíveis:"
+    echo "  up             - Instala dependências, gera arquivos e sobe o cluster"
+    echo "  down           - Remove completamente os contêineres e redes"
+    echo "  stop [nó]      - Derruba um servidor específico (Ex: sudo $0 stop app2)"
+    echo "  start [nó]     - Reativa um servidor específico (Ex: sudo $0 start app2)"
+    echo "  status         - Exibe a tabela de estado dos servidores"
+    echo "====================================================================="
+}
+
 case "$1" in
     up)
         install_dependencies
         generate_configs
-        echo "[+] Launching full infrastructure with Docker Compose..."
+        echo "[+] Subindo a infraestrutura com Docker Compose..."
         docker compose up -d --remove-orphans
-        echo "[!] Success! Open http://localhost:8090 in your browser."
+        echo "[✅] Sucesso total! Acesse no navegador: http://localhost:8090"
         ;;
-        
     down)
-        echo "[+] Stopping and removing all containers and networks..."
+        echo "[+] Removendo todos os contêineres e limpando ambiente..."
         docker compose down
         ;;
-        
-    start)
-        if [ -z "$2" ]; then echo "❌ Error: Specify node (app1, app2, or app3)."; exit 1; fi
-        docker compose start $2
-        ;;
-        
     stop)
-        if [ -z "$2" ]; then echo "❌ Error: Specify node (app1, app2, or app3)."; exit 1; fi
+        if [ -z "$2" ]; then 
+            echo "❌ Erro: Especifique qual nó deseja derrubar (app1, app2 ou app3)."
+            exit 1
+        fi
+        echo "[+] Parando o contêiner $2..."
         docker compose stop $2
         ;;
-        
-    remove)
-        if [ -z "$2" ]; then echo "❌ Error: Specify node (app1, app2, or app3)."; exit 1; fi
-        docker compose rm -f -s $2
+    start)
+        if [ -z "$2" ]; then 
+            echo "❌ Erro: Especifique qual nó deseja iniciar (app1, app2 ou app3)."
+            exit 1
+        fi
+        echo "[+] Reativando o contêiner $2..."
+        docker compose start $2
         ;;
-        
     status)
         docker compose ps
         ;;
-        
     *)
         show_help
         exit 1
