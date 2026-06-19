@@ -54,11 +54,8 @@ Passo 1
 Código
      git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
      
-    cd balanceador8090
-    sudo  bash cluster.sh up
-     
- 
-Passo 2- No seu navegador ou web browser cole http://localhost:8090/
+    cd balanceador8090 http://localhost:8081/ http://localhost:8080/ 
+
 
 Passo 3- 
 Cenário de Teste: Recuperação de Serviços (Self-Healing)
