@@ -2,15 +2,18 @@
 
 set -e
 
+PROJECT_DIR="$HOME/balanceador8090"
+
 echo "=========================================="
 echo " NGINX LOAD BALANCER"
 echo " Ubuntu 22.04+ / WSL"
 echo " Porta 8090"
 echo "=========================================="
 
-if ! command -v docker >/dev/null 2>&1; then
+echo
+echo "[1/6] Verificando Docker..."
 
-    echo "Instalando Docker..."
+if ! command -v docker >/dev/null 2>&1; then
 
     sudo apt update
 
@@ -23,12 +26,15 @@ if ! command -v docker >/dev/null 2>&1; then
     sudo install -m 0755 -d /etc/apt/keyrings
 
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-        sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 
     sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-        sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+    echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+    https://download.docker.com/linux/ubuntu \
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+    sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
 
     sudo apt update
 
@@ -38,16 +44,36 @@ if ! command -v docker >/dev/null 2>&1; then
         containerd.io \
         docker-buildx-plugin \
         docker-compose-plugin
+
+    sudo systemctl enable docker
+    sudo systemctl start docker
+
 fi
 
-if ! docker compose version >/dev/null 2>&1; then
+echo
+echo "[2/6] Verificando Docker Compose..."
+
+if ! sudo docker compose version >/dev/null 2>&1; then
     sudo apt update
     sudo apt install -y docker-compose-plugin
 fi
 
-mkdir -p balanceador8090/nginx
+echo
+echo "[3/6] Limpando containers antigos..."
 
-cd balanceador8090
+sudo docker rm -f nginx_lb 2>/dev/null || true
+sudo docker rm -f app1 2>/dev/null || true
+sudo docker rm -f app2 2>/dev/null || true
+sudo docker rm -f app3 2>/dev/null || true
+
+echo
+echo "[4/6] Criando projeto..."
+
+rm -rf "$PROJECT_DIR"
+
+mkdir -p "$PROJECT_DIR/nginx"
+
+cd "$PROJECT_DIR"
 
 cat > nginx/nginx.conf <<'EOF'
 events {}
@@ -55,9 +81,11 @@ events {}
 http {
 
     upstream backend {
+
         server app1:80 max_fails=1 fail_timeout=5s;
         server app2:80 max_fails=1 fail_timeout=5s;
         server app3:80 max_fails=1 fail_timeout=5s;
+
     }
 
     server {
@@ -74,10 +102,16 @@ http {
                                 http_502
                                 http_503
                                 http_504;
+
         }
+
     }
+
 }
 EOF
+
+echo
+echo "[5/6] Criando docker-compose..."
 
 cat > docker-compose.yml <<'EOF'
 services:
@@ -85,18 +119,22 @@ services:
   app1:
     image: nginx:alpine
     container_name: app1
+    restart: unless-stopped
 
   app2:
     image: nginx:alpine
     container_name: app2
+    restart: unless-stopped
 
   app3:
     image: nginx:alpine
     container_name: app3
+    restart: unless-stopped
 
   nginx:
     image: nginx:latest
     container_name: nginx_lb
+    restart: unless-stopped
 
     ports:
       - "8090:80"
@@ -111,47 +149,51 @@ services:
 EOF
 
 echo
-echo "Validando docker-compose..."
-docker compose config >/dev/null
+echo "[6/6] Validando compose..."
+
+sudo docker compose config >/dev/null
 
 echo
 echo "Subindo ambiente..."
-sudo docker compose up -d
+
+sudo docker compose up -d --remove-orphans
 
 echo
 echo "=========================================="
-echo "CLUSTER INICIADO"
+echo " CLUSTER INICIADO"
 echo "=========================================="
 echo
-echo "Acesse:"
+echo "URL:"
 echo "http://localhost:8090"
 echo
-echo "Containers:"
+echo "STATUS:"
 echo "sudo docker ps"
 echo
-echo "Parar APP1:"
+echo "PARAR APP1:"
 echo "sudo docker stop app1"
 echo
-echo "Iniciar APP1:"
+echo "INICIAR APP1:"
 echo "sudo docker start app1"
 echo
-echo "Parar APP2:"
+echo "PARAR APP2:"
 echo "sudo docker stop app2"
 echo
-echo "Iniciar APP2:"
+echo "INICIAR APP2:"
 echo "sudo docker start app2"
 echo
-echo "Parar APP3:"
+echo "PARAR APP3:"
 echo "sudo docker stop app3"
 echo
-echo "Iniciar APP3:"
+echo "INICIAR APP3:"
 echo "sudo docker start app3"
 echo
-echo "Parar cluster:"
-echo "sudo docker compose stop"
+echo "PARAR CLUSTER:"
+echo "cd $PROJECT_DIR && sudo docker compose stop"
 echo
-echo "Iniciar cluster:"
-echo "sudo docker compose start"
+echo "INICIAR CLUSTER:"
+echo "cd $PROJECT_DIR && sudo docker compose start"
 echo
-echo "Destruir cluster:"
-echo "sudo docker compose down -v"
+echo "DESTRUIR CLUSTER:"
+echo "cd $PROJECT_DIR && sudo docker compose down -v"
+echo
+echo "=========================================="
