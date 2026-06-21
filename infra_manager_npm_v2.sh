@@ -2,87 +2,15 @@
 
 set -e
 
-APP_DIR="$HOME/docker-cluster"
+APP_DIR="$HOME/balanceador8090"
 COMPOSE_FILE="$APP_DIR/docker-compose.yml"
+NGINX_FILE="$APP_DIR/nginx.conf"
 
 create_files() {
 
 mkdir -p "$APP_DIR"
 
-cat > "$COMPOSE_FILE" <<'EOF'
-services:
-
-  nginx:
-    image: nginx:alpine
-    container_name: nginx_lb
-    ports:
-      - "8080:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - app1
-      - app2
-      - app3
-
-  app1:
-    image: node:20-alpine
-    container_name: app1
-    command: >
-      sh -c "
-      echo '
-      const http=require(\"http\");
-      let hits=0;
-      http.createServer((req,res)=>{
-        hits++;
-        res.writeHead(200,{\"Content-Type\":\"application/json\"});
-        res.end(JSON.stringify({
-          app:\"app1\",
-          requests:hits
-        }));
-      }).listen(3000);
-      ' > server.js &&
-      node server.js"
-
-  app2:
-    image: node:20-alpine
-    container_name: app2
-    command: >
-      sh -c "
-      echo '
-      const http=require(\"http\");
-      let hits=0;
-      http.createServer((req,res)=>{
-        hits++;
-        res.writeHead(200,{\"Content-Type\":\"application/json\"});
-        res.end(JSON.stringify({
-          app:\"app2\",
-          requests:hits
-        }));
-      }).listen(3000);
-      ' > server.js &&
-      node server.js"
-
-  app3:
-    image: node:20-alpine
-    container_name: app3
-    command: >
-      sh -c "
-      echo '
-      const http=require(\"http\");
-      let hits=0;
-      http.createServer((req,res)=>{
-        hits++;
-        res.writeHead(200,{\"Content-Type\":\"application/json\"});
-        res.end(JSON.stringify({
-          app:\"app3\",
-          requests:hits
-        }));
-      }).listen(3000);
-      ' > server.js &&
-      node server.js"
-EOF
-
-cat > "$APP_DIR/nginx.conf" <<'EOF'
+cat > "$NGINX_FILE" << 'EOF'
 events {}
 
 http {
@@ -106,64 +34,189 @@ http {
 }
 EOF
 
+cat > "$COMPOSE_FILE" << 'EOF'
+services:
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app1
+      - app2
+      - app3
+
+  app1:
+    image: node:20-alpine
+    command: >
+      sh -c "
+      echo '
+      const http=require(\"http\");
+      let hits=0;
+      http.createServer((req,res)=>{
+        hits++;
+        res.writeHead(200,{\"Content-Type\":\"application/json\"});
+        res.end(JSON.stringify({
+          app:\"app1\",
+          requests:hits,
+          status:\"online\"
+        }));
+      }).listen(3000);
+      ' > server.js &&
+      node server.js"
+
+  app2:
+    image: node:20-alpine
+    command: >
+      sh -c "
+      echo '
+      const http=require(\"http\");
+      let hits=0;
+      http.createServer((req,res)=>{
+        hits++;
+        res.writeHead(200,{\"Content-Type\":\"application/json\"});
+        res.end(JSON.stringify({
+          app:\"app2\",
+          requests:hits,
+          status:\"online\"
+        }));
+      }).listen(3000);
+      ' > server.js &&
+      node server.js"
+
+  app3:
+    image: node:20-alpine
+    command: >
+      sh -c "
+      echo '
+      const http=require(\"http\");
+      let hits=0;
+      http.createServer((req,res)=>{
+        hits++;
+        res.writeHead(200,{\"Content-Type\":\"application/json\"});
+        res.end(JSON.stringify({
+          app:\"app3\",
+          requests:hits,
+          status:\"online\"
+        }));
+      }).listen(3000);
+      ' > server.js &&
+      node server.js"
+EOF
+
 }
 
 up_stack() {
-    create_files
-    cd "$APP_DIR"
-    docker compose up -d
-    echo
-    echo "Cluster iniciado."
-    echo "Acesse:"
-    echo "http://localhost:8080"
+
+create_files
+
+cd "$APP_DIR"
+
+docker compose up -d
+
+echo
+echo "======================================"
+echo "Cluster iniciado"
+echo "======================================"
+echo
+echo "URL:"
+echo "http://localhost:8080"
+echo
+
 }
 
 down_stack() {
-    cd "$APP_DIR" 2>/dev/null || exit 0
-    docker compose down -v
+
+cd "$APP_DIR" 2>/dev/null || exit 0
+
+docker compose down -v --remove-orphans
+
 }
 
 start_stack() {
-    cd "$APP_DIR"
-    docker compose start
+
+cd "$APP_DIR"
+
+docker compose start
+
 }
 
 stop_stack() {
-    cd "$APP_DIR"
-    docker compose stop
+
+cd "$APP_DIR"
+
+docker compose stop
+
 }
 
 status_stack() {
-    cd "$APP_DIR"
-    docker compose ps
+
+cd "$APP_DIR"
+
+docker compose ps
+
+}
+
+logs_stack() {
+
+cd "$APP_DIR"
+
+docker compose logs -f
+
+}
+
+restart_stack() {
+
+cd "$APP_DIR"
+
+docker compose restart
+
 }
 
 case "$1" in
-    up)
-        up_stack
-        ;;
-    down)
-        down_stack
-        ;;
-    start)
-        start_stack
-        ;;
-    stop)
-        stop_stack
-        ;;
-    status)
-        status_stack
-        ;;
-    *)
-        echo
-        echo "Uso:"
-        echo
-        echo "./cluster.sh up"
-        echo "./cluster.sh down"
-        echo "./cluster.sh start"
-        echo "./cluster.sh stop"
-        echo "./cluster.sh status"
-        echo
-        exit 1
-        ;;
+
+up)
+    up_stack
+    ;;
+
+down)
+    down_stack
+    ;;
+
+start)
+    start_stack
+    ;;
+
+stop)
+    stop_stack
+    ;;
+
+status)
+    status_stack
+    ;;
+
+logs)
+    logs_stack
+    ;;
+
+restart)
+    restart_stack
+    ;;
+
+*)
+    echo
+    echo "Uso:"
+    echo
+    echo "./infra_manager_npm_v2.sh up"
+    echo "./infra_manager_npm_v2.sh down"
+    echo "./infra_manager_npm_v2.sh start"
+    echo "./infra_manager_npm_v2.sh stop"
+    echo "./infra_manager_npm_v2.sh restart"
+    echo "./infra_manager_npm_v2.sh status"
+    echo "./infra_manager_npm_v2.sh logs"
+    echo
+    exit 1
+    ;;
 esac
