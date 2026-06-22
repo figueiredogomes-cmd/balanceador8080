@@ -52,7 +52,7 @@ Instalação do WSL e do Ubuntu
 Passo 1 
 . Clonar o repositório
 Código
-     git clone https://github.com/figueiredogomes-cmd/balanceador8080.git
+     git clone https://github.com/figueiredogomes-cmd/balanceador8090.git
      chmod +x infra_manager_chaos.sh
      sudo bash ./infra_manager_chaos.sh
     cd balanceador8080 
